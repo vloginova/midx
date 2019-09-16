@@ -1,5 +1,6 @@
 package com.vloginova.midx.impl
 
+import com.vloginova.midx.api.Index
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.function.Executable
@@ -8,16 +9,13 @@ import org.junit.jupiter.params.provider.MethodSource
 import java.io.File
 import java.util.stream.Stream
 
-
-internal class SimpleIndexTest {
+internal abstract class AbstractIndexFunctionalTest {
     companion object {
         private const val testFilesPath = "/simpleTestFiles"
-        private val simpleIndex = SimpleIndex()
+        lateinit var index: Index
 
-        @BeforeAll
-        @JvmStatic
         fun buildIndex() {
-            simpleIndex.build(File(SimpleIndexTest::class.java.getResource(testFilesPath).file))
+            index.build(File(AbstractIndexFunctionalTest::class.java.getResource(testFilesPath).file))
         }
 
         @JvmStatic
@@ -79,10 +77,32 @@ internal class SimpleIndexTest {
 
     private fun collectMatches(searchText: String): Collection<Triple<String, String, Int>> {
         val matches = ArrayList<Triple<String, String, Int>>()
-        simpleIndex.search(searchText) { fileName, line, startIdx ->
+        index.search(searchText) { fileName, line, startIdx ->
             val simplifiedFileName = fileName.replaceFirst(Regex(".*$testFilesPath"), testFilesPath)
             matches.add(Triple(simplifiedFileName, line, startIdx))
         }
         return matches
+    }
+}
+
+internal class SimpleIndexFunctionalTestImpl : AbstractIndexFunctionalTest() {
+    companion object {
+        @BeforeAll
+        @JvmStatic
+        fun initializeAndBuildIndex() {
+            index = SimpleIndex()
+            buildIndex()
+        }
+    }
+}
+
+internal class TrigramIndexFunctionalTestImpl : AbstractIndexFunctionalTest() {
+    companion object {
+        @BeforeAll
+        @JvmStatic
+        fun initializeAndBuildIndex() {
+            index = TrigramIndex()
+            buildIndex()
+        }
     }
 }
