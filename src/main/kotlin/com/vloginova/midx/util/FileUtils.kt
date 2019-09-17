@@ -14,3 +14,16 @@ fun File.forEachFile(process: (File) -> Unit) {
         process(file)
     }
 }
+
+suspend fun File.forEachFileSuspend(process: suspend (File) -> Unit) {
+    for (file in walk()) {
+        if (!file.isFile) continue
+
+        if (!file.canRead()) {
+            println("Cannot process file ${file.path}, skip")
+            continue
+        }
+
+        process(file)
+    }
+}

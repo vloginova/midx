@@ -12,11 +12,8 @@ import java.util.stream.Stream
 internal abstract class AbstractIndexFunctionalTest {
     companion object {
         private const val testFilesPath = "/simpleTestFiles"
+        val file = File(AbstractIndexFunctionalTest::class.java.getResource(testFilesPath).file)
         lateinit var index: Index
-
-        fun buildIndex() {
-            index.build(File(AbstractIndexFunctionalTest::class.java.getResource(testFilesPath).file))
-        }
 
         @JvmStatic
         fun testDataProvider(): Stream<Pair<String, Array<Triple<String, String, Int>>>> {
@@ -90,8 +87,8 @@ internal class SimpleIndexFunctionalTestImpl : AbstractIndexFunctionalTest() {
         @BeforeAll
         @JvmStatic
         fun initializeAndBuildIndex() {
-            index = SimpleIndex()
-            buildIndex()
+            index = SimpleIndex(file)
+            index.build()
         }
     }
 }
@@ -101,8 +98,9 @@ internal class TrigramIndexFunctionalTestImpl : AbstractIndexFunctionalTest() {
         @BeforeAll
         @JvmStatic
         fun initializeAndBuildIndex() {
-            index = TrigramIndex()
-            buildIndex()
+            index = TrigramIndex(file)
+            index.build()
+            index.waitForBuildCompletion()
         }
     }
 }

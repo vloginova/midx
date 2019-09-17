@@ -11,11 +11,15 @@ import kotlin.collections.HashSet
  * The simple implementation of index, without concurrency and any optimization
  * Not thread safe
  */
-class SimpleIndex : Index {
+class SimpleIndex(private val file: File) : Index {
+    override fun waitForBuildCompletion(): Boolean {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
     private val storage = HashMap<String, MutableList<String>>()
     private var indexBuilt = false
 
-    override fun build(file: File) {
+    override fun build() {
         file.forEachFile {
             tokenize(it.readText(Charsets.UTF_8)).forEach { word ->
                 storage.putIfAbsent(word, ArrayList())
