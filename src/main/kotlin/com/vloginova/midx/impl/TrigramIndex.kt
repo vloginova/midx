@@ -1,10 +1,10 @@
 package com.vloginova.midx.impl
 
-import com.vloginova.midx.api.Index
 import com.vloginova.midx.util.collections.TrigramSet
+import com.vloginova.midx.api.Index
+import com.vloginova.midx.util.createTrigramSet
 import com.vloginova.midx.util.forEachFile
 import com.vloginova.midx.util.forEachFileSuspend
-import com.vloginova.midx.util.toTrigramSet
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import java.io.File
@@ -96,7 +96,7 @@ class TrigramIndex(private val file: File) : Index {
 
     private suspend fun produceTrigrams(filesChannel: Channel<File>, resultChannel: Channel<Pair<String, TrigramSet>>) {
         for (file in filesChannel) {
-            resultChannel.send(Pair(file.path, file.readText(Charsets.UTF_8).toTrigramSet()))
+            resultChannel.send(Pair(file.path, createTrigramSet(file)))
         }
     }
 
@@ -134,11 +134,11 @@ class TrigramIndex(private val file: File) : Index {
     }
 
     private fun matchingFileCandidates(text: String, indexStorage: Map<Int, List<String>>): Collection<String> {
-        val trigrams = text.toTrigramSet()
+        val trigrams = createTrigramSet(text)
         if (trigrams.isEmpty()) return emptyList()
 
         var intersection = indexStorage[trigrams.first()]?.toSet() ?: emptySet()
-        for (trigram in trigrams){
+        for (trigram in trigrams) {
             indexStorage[trigram]?.let { intersection = intersection.intersect(it) }
         }
         return intersection

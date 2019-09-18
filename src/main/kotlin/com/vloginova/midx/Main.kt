@@ -7,7 +7,7 @@ import java.io.File
 import kotlin.system.measureTimeMillis
 
 fun main(args: Array<String>) {
-    require(args.size == 2) { "Exactly two arguments expected, was ${args.size}" }
+    if (args.size != 2) throw IllegalArgumentException("Exactly two arguments expected, was ${args.size}")
 
     val simpleIndex = TrigramIndex(File(args[0]))
     val timeMillis = measureTimeMillis {
