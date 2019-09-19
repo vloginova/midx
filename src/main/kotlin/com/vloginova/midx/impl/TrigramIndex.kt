@@ -1,6 +1,7 @@
 package com.vloginova.midx.impl
 
 import com.vloginova.midx.api.Index
+import com.vloginova.midx.util.collections.TrigramSet
 import com.vloginova.midx.util.forEachFile
 import com.vloginova.midx.util.forEachFileSuspend
 import com.vloginova.midx.util.toTrigramSet
@@ -32,7 +33,7 @@ class TrigramIndex(private val file: File) : Index {
             check(!isBuildInProgress()) { "Build is already in progress" }
             indexBuildingJob = coroutineScope.launch {
                 val filesChannel = Channel<File>()
-                val trigramsChannel = Channel<Pair<String, Set<Int>>>()
+                val trigramsChannel = Channel<Pair<String, TrigramSet>>()
 
                 launch { produceFiles(file, filesChannel) }
                 val trigramProducerJobs = ArrayList<Job>(trigramsProducersCount)
@@ -93,18 +94,18 @@ class TrigramIndex(private val file: File) : Index {
         filesChannel.close()
     }
 
-    private suspend fun produceTrigrams(filesChannel: Channel<File>, resultChannel: Channel<Pair<String, Set<Int>>>) {
+    private suspend fun produceTrigrams(filesChannel: Channel<File>, resultChannel: Channel<Pair<String, TrigramSet>>) {
         for (file in filesChannel) {
             resultChannel.send(Pair(file.path, file.readText(Charsets.UTF_8).toTrigramSet()))
         }
     }
 
-    private suspend fun fillStorageWithTrigrams(resultChannel: Channel<Pair<String, Set<Int>>>) {
+    private suspend fun fillStorageWithTrigrams(resultChannel: Channel<Pair<String, TrigramSet>>) {
         val indexStorage = HashMap<Int, MutableList<String>>()
         for ((fileName, trigrams) in resultChannel) {
-            trigrams.forEach { word ->
-                indexStorage.putIfAbsent(word, ArrayList())
-                indexStorage[word]!!.add(fileName)
+            for (trigram in trigrams) {
+                indexStorage.putIfAbsent(trigram, ArrayList())
+                indexStorage[trigram]!!.add(fileName)
             }
         }
         storage = indexStorage
@@ -112,7 +113,7 @@ class TrigramIndex(private val file: File) : Index {
 
     private suspend fun closeTrigramsChannelWhenReady(
         jobs: Collection<Job>,
-        trigramsChannel: Channel<Pair<String, Set<Int>>>
+        trigramsChannel: Channel<Pair<String, TrigramSet>>
     ) {
         jobs.forEach { it.join() }
         trigramsChannel.close()
@@ -133,12 +134,12 @@ class TrigramIndex(private val file: File) : Index {
     }
 
     private fun matchingFileCandidates(text: String, indexStorage: Map<Int, List<String>>): Collection<String> {
-        val tokens = text.toTrigramSet()
-        if (tokens.isEmpty()) return emptyList()
+        val trigrams = text.toTrigramSet()
+        if (trigrams.isEmpty()) return emptyList()
 
-        var intersection = indexStorage[tokens.first()]?.toSet() ?: emptySet()
-        tokens.forEach { token ->
-            indexStorage[token]?.let { intersection = intersection.intersect(it) }
+        var intersection = indexStorage[trigrams.first()]?.toSet() ?: emptySet()
+        for (trigram in trigrams){
+            indexStorage[trigram]?.let { intersection = intersection.intersect(it) }
         }
         return intersection
     }

@@ -29,7 +29,7 @@ internal class TrigramUtilsTest {
     @Test
     fun `Check that expected trigram set is created for palindrome`() {
         val trigramSet = palindrome.toTrigramSet()
-        assertAll(trigramSet.map {
+        assertAll(trigramSet.toSet().map {
             Executable {
                 assertTrue(palindromeTrigrams.containsValue(it), "Result has unexpected trigram $it")
             }
