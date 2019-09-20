@@ -1,7 +1,6 @@
 package com.vloginova.midx.util
 
 import com.vloginova.midx.util.collections.IntSet
-import com.vloginova.midx.util.collections.intHashCode
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -65,10 +64,7 @@ internal class IntSetTest {
         randomValuesNumber: Int
     ) {
         val randomValues = List(randomValuesCount) {
-            Random.nextInt(
-                -randomValuesNumber / 2,
-                randomValuesNumber / 2 + randomValuesNumber % 2
-            )
+            getRandomInt(randomValuesNumber)
         }
         val intSet = randomValues.toIntSet(4)
         intSet.checkContainsExactly(randomValues)
@@ -86,19 +82,6 @@ internal class IntSetTest {
             intSet.add(value)
         }
         return intSet
-    }
-
-    private fun generateIntWithHashcodeFor(arrayCapacity: Int, expectedIndex: Int): Sequence<Int> {
-        return sequence {
-            var i = 0
-
-            while (true) {
-                val hashCode = intHashCode(i)
-                if ((hashCode and (arrayCapacity - 1)) == expectedIndex)
-                    yield(i)
-                i++
-            }
-        }
     }
 
 }

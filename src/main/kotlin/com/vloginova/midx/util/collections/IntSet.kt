@@ -30,7 +30,7 @@ class IntSet(initialCapacity: Int = 1 shl 8) {
             resize()
         }
 
-        var i = intHashCode(value)
+        var i = intHashCode(value) and mask
         while (array[i] != 0 && array[i] != value) {
             i++
             if (i == array.size) {
@@ -46,7 +46,7 @@ class IntSet(initialCapacity: Int = 1 shl 8) {
 
     fun isEmpty(): Boolean = size == 0
 
-    operator fun iterator(): IntIterator = Iterator()
+    operator fun iterator(): IntIterator = IntSetIterator()
 
     fun first() = iterator().nextInt()
 
@@ -63,22 +63,7 @@ class IntSet(initialCapacity: Int = 1 shl 8) {
         }
     }
 
-    /**
-     * Hash function is taken here:
-     * https://stackoverflow.com/questions/664014/what-integer-hash-function-are-good-that-accepts-an-integer-hash-key
-     * It gives a pretty good distribution and respectively low number of collisions. Compared to Intellij Idea version,
-     * it has approximately 4-5 times less collisions without initial capacity optimization, and it gives less
-     * degradation when increasing load factor.
-     */
-    private fun intHashCode(y: Int): Int {
-        var x = ((y shr 16) xor y) * 0x45d9f3b
-        /* Found no difference in terms collisions count after commenting this */
-//        x = ((x shr 16) xor x) * 0x45d9f3b
-        x = (x shr 16) xor x
-        return x and mask
-    }
-
-    private inner class Iterator : IntIterator() {
+    private inner class IntSetIterator : IntIterator() {
         private var restElements = size
         private var index = 0
 

@@ -2,9 +2,10 @@ package com.vloginova.midx.impl
 
 import com.vloginova.midx.util.collections.TrigramSet
 import com.vloginova.midx.api.Index
-import com.vloginova.midx.util.createTrigramSet
+import com.vloginova.midx.util.collections.TrigramStorage
 import com.vloginova.midx.util.forEachFile
 import com.vloginova.midx.util.forEachFileSuspend
+import com.vloginova.midx.util.createTrigramSet
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import java.io.File
@@ -24,7 +25,7 @@ class TrigramIndex(private val file: File) : Index {
     /* Below two fields are a part of shared mutable state of TrigramIndex. They are guarded by lock.
     * TODO: describe when lock is not needed */
     @Volatile
-    private var storage: Map<Int, List<String>> = emptyMap()
+    private var storage: TrigramStorage = TrigramStorage(0)
     @Volatile
     private var indexBuildingJob: Job? = null
 
@@ -50,7 +51,7 @@ class TrigramIndex(private val file: File) : Index {
     override fun search(text: String, processMatch: (String, String, Int) -> Unit) {
         if (text.isEmpty()) return
 
-        var indexStorage = emptyMap<Int, List<String>>()
+        var indexStorage = TrigramStorage(0)
         lock.read {
             check(isBuildCompleted()) { "Cannot search when index is not yet built" }
             indexStorage = storage
@@ -72,7 +73,7 @@ class TrigramIndex(private val file: File) : Index {
         lock.write {
             runBlocking { indexBuildingJob?.cancelAndJoin() }
             indexBuildingJob = null
-            storage = emptyMap()
+            storage = TrigramStorage()
         }
     }
 
@@ -101,11 +102,11 @@ class TrigramIndex(private val file: File) : Index {
     }
 
     private suspend fun fillStorageWithTrigrams(resultChannel: Channel<Pair<String, TrigramSet>>) {
-        val indexStorage = HashMap<Int, MutableList<String>>()
+        val indexStorage = TrigramStorage()
         for ((fileName, trigrams) in resultChannel) {
             for (trigram in trigrams) {
-                indexStorage.putIfAbsent(trigram, ArrayList())
-                indexStorage[trigram]!!.add(fileName)
+                val files = indexStorage.computeIfAbsent(trigram) { ArrayList() }
+                files.add(fileName)
             }
         }
         storage = indexStorage
@@ -133,7 +134,7 @@ class TrigramIndex(private val file: File) : Index {
         }
     }
 
-    private fun matchingFileCandidates(text: String, indexStorage: Map<Int, List<String>>): Collection<String> {
+    private fun matchingFileCandidates(text: String, indexStorage: TrigramStorage): Collection<String> {
         val trigrams = createTrigramSet(text)
         if (trigrams.isEmpty()) return emptyList()
 
