@@ -1,21 +1,26 @@
 package com.vloginova.midx
 
-import com.vloginova.midx.impl.TrigramIndex
+import com.vloginova.midx.api.Index
+import com.vloginova.midx.impl.buildIndexAsync
 import com.vloginova.midx.util.FontStyle
 import com.vloginova.midx.util.prettyPrint
+import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlin.system.measureTimeMillis
 
 fun main(args: Array<String>) {
     if (args.size != 2) throw IllegalArgumentException("Exactly two arguments expected, was ${args.size}")
 
-    val simpleIndex = TrigramIndex(File(args[0]))
+    var index : Index? = null
     val timeMillis = measureTimeMillis {
-        simpleIndex.build()
-        simpleIndex.waitForBuildCompletion()
+        val simpleIndex = buildIndexAsync(File(args[0]))
+        runBlocking {
+            index = simpleIndex.await()
+        }
     }
+
     val text = args[1]
-    simpleIndex.search(text) { fileName, line, startIdx ->
+    index?.search(text) { fileName, line, startIdx ->
         prettyPrint(fileName, FontStyle.BOLD)
         prettyPrint(": ", FontStyle.BOLD)
 
@@ -24,6 +29,7 @@ fun main(args: Array<String>) {
         println(line.drop(startIdx + text.length))
     }
     println("Indexing time: $timeMillis")
+
 //    println("Collisions count: ${AddOnlyIntSet.collisionsCounter}")
 //    println("Resize count: ${AddOnlyIntSet.counter}")
 //    println("Bytes total : ${AddOnlyIntSet.totalBytes.get() / 1024 / 1024}M")

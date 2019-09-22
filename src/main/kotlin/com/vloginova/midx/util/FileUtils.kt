@@ -48,3 +48,14 @@ private fun File.hasTextContent(): Boolean {
     val contentType = Files.probeContentType(toPath()) ?: ""
     return contentType.startsWith("text/") || contentType in otherTextMimeTypes
 }
+
+fun File.fullTextSearch(text: String, processMatch: (String, String, Int) -> Unit) {
+    forEachLine(Charsets.UTF_8) { line ->
+        var textPosition = line.indexOf(text)
+        while (textPosition != -1) {
+            // TODO: exception handling
+            processMatch(path, line, textPosition)
+            textPosition = line.indexOf(text, textPosition + 1)
+        }
+    }
+}

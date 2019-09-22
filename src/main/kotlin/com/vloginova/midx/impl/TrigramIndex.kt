@@ -1,148 +1,83 @@
 package com.vloginova.midx.impl
 
-import com.vloginova.midx.util.collections.TrigramSet
 import com.vloginova.midx.api.Index
-import com.vloginova.midx.util.collections.TrigramStorage
+import com.vloginova.midx.util.collections.TrigramSet
+import com.vloginova.midx.util.collections.TrigramIndexStorage
+import com.vloginova.midx.util.createTrigramSet
 import com.vloginova.midx.util.forEachFile
 import com.vloginova.midx.util.forEachFileSuspend
-import com.vloginova.midx.util.createTrigramSet
+import com.vloginova.midx.util.fullTextSearch
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import java.io.File
-import java.util.concurrent.locks.ReentrantReadWriteLock
-import kotlin.concurrent.read
-import kotlin.concurrent.write
+
+private val numberOfCores = Runtime.getRuntime().availableProcessors()
+@UseExperimental(ObsoleteCoroutinesApi::class)
+private val defultCoroutineDispatcher = newFixedThreadPoolContext(numberOfCores + 1, "Trigram Index Builder")
+
+private data class FileIndex(val file: String, val trigrams: TrigramSet)
+
+fun buildIndexAsync(file: File, coroutineDispatcher: CoroutineDispatcher = defultCoroutineDispatcher): Deferred<Index> {
+    val fileIndexChannel = Channel<FileIndex>(100)
+
+    fun CoroutineScope.produceFileIndexes() {
+        val fileIndexesProducer = launch {
+            file.forEachFileSuspend {
+                launch { fileIndexChannel.send(FileIndex(it.path, createTrigramSet(it))) }
+            }
+        }
+        launch {
+            fileIndexesProducer.join()
+            fileIndexChannel.close()
+        }
+    }
+
+    suspend fun reverseFileIndexes(): TrigramIndexStorage {
+        val reversedTrigramIndex = TrigramIndexStorage()
+        for ((filePath, trigrams) in fileIndexChannel) {
+            for (trigram in trigrams) {
+                val files = reversedTrigramIndex.computeIfAbsent(trigram) { ArrayList() }
+                files.add(filePath)
+            }
+        }
+        return reversedTrigramIndex
+    }
+
+    return GlobalScope.async(coroutineDispatcher) {
+        produceFileIndexes()
+        val storage = reverseFileIndexes()
+        return@async TrigramIndex(file, storage)
+    }
+}
 
 /**
  * The thread safe implementation of index, keys are implemented as trigrams
  * TODO: accept several files
  */
-class TrigramIndex(private val file: File) : Index {
-    private val trigramsProducersCount = 10
-    private val coroutineScope = CoroutineScope(Dispatchers.Default)
-    private val lock = ReentrantReadWriteLock()
-
-    /* Below two fields are a part of shared mutable state of TrigramIndex. They are guarded by lock.
-    * TODO: describe when lock is not needed */
-    @Volatile
-    private var storage: TrigramStorage = TrigramStorage(0)
-    @Volatile
-    private var indexBuildingJob: Job? = null
-
-    override fun build() {
-        lock.write {
-            check(!isBuildInProgress()) { "Build is already in progress" }
-            indexBuildingJob = coroutineScope.launch {
-                val filesChannel = Channel<File>()
-                val trigramsChannel = Channel<Pair<String, TrigramSet>>()
-
-                launch { produceFiles(file, filesChannel) }
-                val trigramProducerJobs = ArrayList<Job>(trigramsProducersCount)
-                repeat(trigramsProducersCount) {
-                    val job = launch { produceTrigrams(filesChannel, trigramsChannel) }
-                    trigramProducerJobs.add(job)
-                }
-                launch { fillStorageWithTrigrams(trigramsChannel) }
-                launch { closeTrigramsChannelWhenReady(trigramProducerJobs, trigramsChannel) }
-            }
-        }
-    }
+class TrigramIndex(private val file: File, private val indexStorage: TrigramIndexStorage) : Index {
 
     override fun search(text: String, processMatch: (String, String, Int) -> Unit) {
         if (text.isEmpty()) return
 
-        var indexStorage = TrigramStorage(0)
-        lock.read {
-            check(isBuildCompleted()) { "Cannot search when index is not yet built" }
-            indexStorage = storage
-        }
-
         if (text.length < 3) {
-            file.forEachFile { file ->
-                file.fullTextSearch(text, processMatch)
+            file.forEachFile {
+                it.fullTextSearch(text, processMatch)
             }
-            return
-        }
-
-        matchingFileCandidates(text, indexStorage).forEach { filePath ->
-            File(filePath).fullTextSearch(text, processMatch)
-        }
-    }
-
-    override fun cancelBuild() {
-        lock.write {
-            runBlocking { indexBuildingJob?.cancelAndJoin() }
-            indexBuildingJob = null
-            storage = TrigramStorage()
-        }
-    }
-
-    override fun waitForBuildCompletion(): Boolean {
-        runBlocking { indexBuildingJob?.join() }
-        return isBuildCompleted()
-    }
-
-    private fun isBuildCompleted(): Boolean {
-        return indexBuildingJob?.isCompleted ?: false
-    }
-
-    private fun isBuildInProgress(): Boolean {
-        return indexBuildingJob?.isActive ?: false
-    }
-
-    private suspend fun produceFiles(file: File, filesChannel: Channel<File>) {
-        file.forEachFileSuspend { filesChannel.send(it) }
-        filesChannel.close()
-    }
-
-    private suspend fun produceTrigrams(filesChannel: Channel<File>, resultChannel: Channel<Pair<String, TrigramSet>>) {
-        for (file in filesChannel) {
-            resultChannel.send(Pair(file.path, createTrigramSet(file)))
-        }
-    }
-
-    private suspend fun fillStorageWithTrigrams(resultChannel: Channel<Pair<String, TrigramSet>>) {
-        val indexStorage = TrigramStorage()
-        for ((fileName, trigrams) in resultChannel) {
-            for (trigram in trigrams) {
-                val files = indexStorage.computeIfAbsent(trigram) { ArrayList() }
-                files.add(fileName)
-            }
-        }
-        storage = indexStorage
-    }
-
-    private suspend fun closeTrigramsChannelWhenReady(
-        jobs: Collection<Job>,
-        trigramsChannel: Channel<Pair<String, TrigramSet>>
-    ) {
-        jobs.forEach { it.join() }
-        trigramsChannel.close()
-    }
-
-    private fun File.fullTextSearch(
-        text: String,
-        processMatch: (String, String, Int) -> Unit
-    ) {
-        forEachLine(Charsets.UTF_8) { line ->
-            var textPosition = line.indexOf(text)
-            while (textPosition != -1) {
-                // TODO: exception handling
-                processMatch(path, line, textPosition)
-                textPosition = line.indexOf(text, textPosition + 1)
+        } else {
+            matchingFileCandidates(text, indexStorage).forEach { filePath ->
+                File(filePath).fullTextSearch(text, processMatch)
             }
         }
     }
 
-    private fun matchingFileCandidates(text: String, indexStorage: TrigramStorage): Collection<String> {
+    private fun matchingFileCandidates(text: String, indexIndexStorage: TrigramIndexStorage): Collection<String> {
+        check(text.length >= 3) { "Cannot search in index inputs with length les than 3" }
+
         val trigrams = createTrigramSet(text)
-        if (trigrams.isEmpty()) return emptyList()
-
-        var intersection = indexStorage[trigrams.first()]?.toSet() ?: emptySet()
+        var intersection = indexIndexStorage[trigrams.first()]?.toSet() ?: emptySet()
         for (trigram in trigrams) {
-            indexStorage[trigram]?.let { intersection = intersection.intersect(it) }
+            indexIndexStorage[trigram]?.let { intersection = intersection.intersect(it) }
         }
         return intersection
     }
-
 }

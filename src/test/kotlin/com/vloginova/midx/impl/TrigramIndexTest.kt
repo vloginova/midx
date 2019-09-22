@@ -1,19 +1,19 @@
 package com.vloginova.midx.impl
 
 import com.vloginova.midx.api.Index
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.function.Executable
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 import java.io.File
 import java.util.stream.Stream
 
-internal abstract class AbstractIndexFunctionalTest {
+internal class TrigramIndexTest {
     companion object {
         private const val testFilesPath = "/simpleTestFiles"
-        val file = File(AbstractIndexFunctionalTest::class.java.getResource(testFilesPath).file)
-        lateinit var index: Index
+        private val file = File(TrigramIndexTest::class.java.getResource(testFilesPath).file)
+        val index: Index = runBlocking { buildIndexAsync(file).await() }
 
         @JvmStatic
         fun testDataProvider(): Stream<Pair<String, Array<Triple<String, String, Int>>>> {
@@ -79,28 +79,5 @@ internal abstract class AbstractIndexFunctionalTest {
             matches.add(Triple(simplifiedFileName, line, startIdx))
         }
         return matches
-    }
-}
-
-internal class SimpleIndexFunctionalTestImpl : AbstractIndexFunctionalTest() {
-    companion object {
-        @BeforeAll
-        @JvmStatic
-        fun initializeAndBuildIndex() {
-            index = SimpleIndex(file)
-            index.build()
-        }
-    }
-}
-
-internal class TrigramIndexFunctionalTestImpl : AbstractIndexFunctionalTest() {
-    companion object {
-        @BeforeAll
-        @JvmStatic
-        fun initializeAndBuildIndex() {
-            index = TrigramIndex(file)
-            index.build()
-            index.waitForBuildCompletion()
-        }
     }
 }
