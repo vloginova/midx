@@ -9,7 +9,7 @@ import java.io.File
 import kotlin.system.measureTimeMillis
 
 fun main(args: Array<String>) {
-    if (args.size != 2) throw IllegalArgumentException("Exactly two arguments expected, was ${args.size}")
+    require(args.size == 2) { "Exactly two arguments expected, was ${args.size}" }
 
     var index : Index? = null
     val timeMillis = measureTimeMillis {
@@ -20,13 +20,13 @@ fun main(args: Array<String>) {
     }
 
     val text = args[1]
-    index?.search(text) { fileName, line, startIdx ->
+    index?.search(text) { (fileName, matchingText, startIdx, endIdx) ->
         prettyPrint(fileName, FontStyle.BOLD)
         prettyPrint(": ", FontStyle.BOLD)
 
-        print(line.take(startIdx))
-        prettyPrint(line.substring(startIdx, startIdx + text.length), FontStyle.BOLD, FontStyle.RED)
-        println(line.drop(startIdx + text.length))
+        print(matchingText.take(startIdx))
+        prettyPrint(matchingText.substring(startIdx, endIdx), FontStyle.BOLD, FontStyle.RED)
+        println(matchingText.drop(endIdx))
     }
     println("Indexing time: $timeMillis")
 

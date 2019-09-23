@@ -6,6 +6,7 @@ import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.function.Executable
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
+import org.junit.jupiter.params.provider.ValueSource
 import kotlin.random.Random
 
 internal class TrigramUtilsTest {
@@ -90,26 +91,40 @@ internal class TrigramUtilsTest {
         assertThrows<IllegalArgumentException> { createTrigramSet(tempFile, 2) }
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = ["abc\r", "abc\r\nxyz", "abc\r\n", "\rabc\r\ndef\rghi\njkl"])
+    fun `Check createTrigramSet(String) for multiline inputs`(input: String) {
+        val trigramsForInputWithLfOnly = createTrigramSet(input.replaceFileSeparatorsWithLf()).toSet()
+        val trigramsForInput = createTrigramSet(input).toSet()
+        assertEquals(trigramsForInputWithLfOnly, trigramsForInput)
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["abc\r", "abc\r\nxyz", "abc\r\n", "\rabc\r\ndef\rghi\njkl"])
+    fun `Check createTrigramSet(File) for multiline inputs`(input: String) {
+        val tempFile = createTempFile()
+        tempFile.writeText(input)
+        val trigramsForInputWithLfOnly = createTrigramSet(tempFile, 3).toSet()
+        val trigramsForInput = createTrigramSet(input.replaceFileSeparatorsWithLf()).toSet()
+        assertEquals(trigramsForInput, trigramsForInputWithLfOnly)
+    }
+
     @Test
     fun `Check that createTrigramSet() behavior with default buffer size is the same as of string method version`() {
-        val alphabet = "ABCDabcdАБВГабвг{}(); "
+        val alphabet = "ABCDabcdАБВГабвг{}(); \n\r"
         val text = (1..10 * 1024)
             .map { Random.nextInt(0, alphabet.length) }
             .map(alphabet::get)
-            .joinToString("");
+            .joinToString("")
         val tempFile = createTempFile()
         tempFile.writeText(text)
         val trigramsFromFile = createTrigramSet(tempFile).toSet()
         val trigramsFromString = createTrigramSet(text).toSet()
-        assertEquals(
-            trigramsFromString.size,
-            trigramsFromFile.size,
-            "String and file versions of createTrigramSet() produced sets with different size"
-        )
-        assertEquals(
-            trigramsFromString.size,
-            trigramsFromFile.intersect(trigramsFromFile).size,
-            "String and file versions of createTrigramSet() produced sets with different content"
-        )
+        assertEquals(trigramsFromString, trigramsFromFile)
+    }
+
+    private fun assertEquals(expectedSet: Set<Int>, actualSer: Set<Int>) {
+        assertEquals(expectedSet.size, actualSer.size, "Unexpected set size")
+        assertEquals(expectedSet.size, actualSer.intersect(actualSer).size, "Unexpected set content")
     }
 }

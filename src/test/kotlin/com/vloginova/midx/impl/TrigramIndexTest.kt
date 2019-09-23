@@ -1,6 +1,7 @@
 package com.vloginova.midx.impl
 
 import com.vloginova.midx.api.Index
+import com.vloginova.midx.api.SearchResult
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.function.Executable
@@ -16,29 +17,29 @@ internal class TrigramIndexTest {
         val index: Index = runBlocking { buildIndexAsync(file).await() }
 
         @JvmStatic
-        fun testDataProvider(): Stream<Pair<String, Array<Triple<String, String, Int>>>> {
+        fun testDataProvider(): Stream<Pair<String, Array<SearchResult>>> {
             return Stream.of(
                 Pair(
                     "r of the", arrayOf(
-                        Triple("/simpleTestFiles/text1.txt", "The hour of the waning of love has beset us,", 7)
+                        SearchResult("/simpleTestFiles/text1.txt", "The hour of the waning of love has beset us,", 7, 15)
                     )
                 ),
                 Pair(
                     "ani", arrayOf(
-                        Triple("/simpleTestFiles/text1.txt", "The hour of the waning of love has beset us,", 17)
+                        SearchResult("/simpleTestFiles/text1.txt", "The hour of the waning of love has beset us,", 17, 20)
                     )
                 ),
                 Pair(
                     "The hour", arrayOf(
-                        Triple("/simpleTestFiles/text1.txt", "The hour of the waning of love has beset us,", 0)
+                        SearchResult("/simpleTestFiles/text1.txt", "The hour of the waning of love has beset us,", 0, 8)
                     )
                 ),
                 Pair(
                     "of", arrayOf(
-                        Triple("/simpleTestFiles/text1.txt", "The hour of the waning of love has beset us,", 9),
-                        Triple("/simpleTestFiles/text1.txt", "The hour of the waning of love has beset us,", 23),
-                        Triple("/simpleTestFiles/text2.txt", "Yellow the leaves of the rowan above us,", 18),
-                        Triple("/simpleTestFiles/text1.txt", "Let us part, ere the season of passion forget us,", 28)
+                        SearchResult("/simpleTestFiles/text1.txt", "The hour of the waning of love has beset us,", 9, 11),
+                        SearchResult("/simpleTestFiles/text1.txt", "The hour of the waning of love has beset us,", 23, 25),
+                        SearchResult("/simpleTestFiles/text2.txt", "Yellow the leaves of the rowan above us,", 18, 20),
+                        SearchResult("/simpleTestFiles/text1.txt", "Let us part, ere the season of passion forget us,", 28, 30)
                     )
                 ),
                 Pair(
@@ -53,7 +54,7 @@ internal class TrigramIndexTest {
 
     @ParameterizedTest
     @MethodSource("testDataProvider")
-    fun testSearchResult(testData: Pair<String, Array<Triple<String, String, Int>>>) {
+    fun testSearchResult(testData: Pair<String, Array<SearchResult>>) {
         val matches = collectMatches(testData.first)
         assertAll("Expected match is missed in the actual result", testData.second.map { match ->
             Executable {
@@ -72,11 +73,11 @@ internal class TrigramIndexTest {
         )
     }
 
-    private fun collectMatches(searchText: String): Collection<Triple<String, String, Int>> {
-        val matches = ArrayList<Triple<String, String, Int>>()
-        index.search(searchText) { fileName, line, startIdx ->
+    private fun collectMatches(searchText: String): Collection<SearchResult> {
+        val matches = ArrayList<SearchResult>()
+        index.search(searchText) { (fileName, line, startIdx, endIdx) ->
             val simplifiedFileName = fileName.replaceFirst(Regex(".*$testFilesPath"), testFilesPath)
-            matches.add(Triple(simplifiedFileName, line, startIdx))
+            matches.add(SearchResult(simplifiedFileName, line, startIdx, endIdx))
         }
         return matches
     }

@@ -72,8 +72,8 @@ internal class IntSetTest {
 
     private fun IntSet.checkContainsExactly(values: List<Int>) {
         val set = values.toSet()
-        assertEquals(set.size, size, "Size of set is unexpected")
-        assertEquals(set.size, toSet().intersect(set).size, "Content of set is unexpected")
+        assertEquals(set.size, size, "Unexpected set size")
+        assertEquals(set.size, toSet().intersect(set).size, "Unexpected set content")
     }
 
     private fun Iterable<Int>.toIntSet(initialCapacity: Int): IntSet {

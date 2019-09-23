@@ -2,6 +2,7 @@ package com.vloginova.midx.util
 
 import com.vloginova.midx.util.collections.IntSet
 import com.vloginova.midx.util.collections.intHashCode
+import org.junit.jupiter.api.Assertions
 import kotlin.random.Random
 
 fun IntSet.toSet() : Set<Int>  {
