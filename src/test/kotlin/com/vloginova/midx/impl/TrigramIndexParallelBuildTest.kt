@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.function.Executable
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.memberProperties
@@ -81,24 +82,23 @@ class ExceptionHandlingTrigramIndexTest {
     fun `Check index is build without exception when input files are cleaned up`() {
         val rootDirectory = createTempDir()
         generateInputData(rootDirectory)
-        val unprocessedFiles = mutableListOf<String>()
+        val counter = AtomicInteger()
         runBlocking {
-            val indexBuiltInParallel = buildIndexAsync(rootDirectory, handleUnprocessedFiles = {
-                listItem -> unprocessedFiles.addAll(listItem)
+            val indexBuiltInParallel = buildIndexAsync(rootDirectory, handleUnprocessedFile = {
+                counter.incrementAndGet()
             })
             delay(100L)
             cleanUpInputData(rootDirectory)
             indexBuiltInParallel.await()
         }
-        assertTrue(unprocessedFiles.isNotEmpty())
-        assertTrue(unprocessedFiles.size < fileNumber)
+        assertTrue(counter.get() < fileNumber)
     }
 }
 
 private const val fileNumber = 100
 private const val folderNumber = 10
 
-private fun generateInputData(rootDirectory:File) {
+private fun generateInputData(rootDirectory: File) {
     val directories = ArrayList<File>()
     directories.add(rootDirectory)
 

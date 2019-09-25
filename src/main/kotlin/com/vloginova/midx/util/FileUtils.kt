@@ -1,11 +1,13 @@
 package com.vloginova.midx.util
 
 import com.vloginova.midx.api.SearchResult
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runBlocking
 import mu.KotlinLogging
 import java.io.File
 import java.nio.file.Files
 import java.util.*
+import kotlin.coroutines.coroutineContext
 
 /**
  * MIME types that do not start with 'text/', but having text-based content. The list is not complete, it was composed
@@ -34,9 +36,9 @@ fun File.forEachFile(process: (File) -> Unit) {
  * and can be read. A content type is defined by [Files.probeContentType], and it is considered to be text when it has
  * text/\* MIME type or it is listed in [otherTextMimeTypes].
  */
-suspend fun File.forEachFileSuspend(isCanceled: () -> Boolean = {false}, process: suspend (File) -> Unit) {
+suspend fun File.forEachFileSuspend(process: suspend (File) -> Unit) {
     for (file in walk()) {
-        if (isCanceled()) return
+        if (!coroutineContext.isActive) return
 
         if (!file.isFile) continue
 
