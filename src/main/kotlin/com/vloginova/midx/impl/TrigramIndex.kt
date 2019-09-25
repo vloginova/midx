@@ -11,6 +11,8 @@ import com.vloginova.midx.util.fullTextSearch
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import java.io.File
+import java.util.concurrent.ConcurrentLinkedQueue
+import kotlin.collections.ArrayList
 
 private val numberOfCores = Runtime.getRuntime().availableProcessors()
 @UseExperimental(ObsoleteCoroutinesApi::class)
@@ -18,22 +20,33 @@ private val defultCoroutineDispatcher = newFixedThreadPoolContext(numberOfCores 
 
 private data class FileIndex(val file: String, val trigrams: TrigramSet)
 
-fun buildIndexAsync(file: File, coroutineDispatcher: CoroutineDispatcher = defultCoroutineDispatcher): Deferred<Index> {
+fun buildIndexAsync(
+    file: File,
+    coroutineDispatcher: CoroutineDispatcher = defultCoroutineDispatcher,
+    handleUnprocessedFiles: ((Iterable<String>) -> Unit) = { _ -> }
+): Deferred<Index> {
     val fileIndexChannel = Channel<FileIndex>(100)
+
+    val unprocessedFiles = ConcurrentLinkedQueue<String>()
 
     fun CoroutineScope.produceFileIndexes() {
         val fileIndexesProducer = launch {
             val isCanceled = { !isActive }
-            file.forEachFileSuspend (isCanceled) {
+            file.forEachFileSuspend(isCanceled) {
                 launch {
-                    val fileIndex = FileIndex(it.path, createTrigramSet(it, isCanceled))
-                    fileIndexChannel.send(fileIndex)
+                    try {
+                        val fileIndex = FileIndex(it.path, createTrigramSet(it, isCanceled))
+                        fileIndexChannel.send(fileIndex)
+                    } catch (_: Throwable) {
+                        unprocessedFiles.add(it.path)
+                    }
                 }
             }
         }
         launch {
             fileIndexesProducer.join()
             fileIndexChannel.close()
+            handleUnprocessedFiles(unprocessedFiles.toList())
         }
     }
 

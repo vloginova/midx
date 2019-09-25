@@ -42,11 +42,6 @@ suspend fun File.forEachFileSuspend(isCanceled: () -> Boolean = {false}, process
 
         if (!file.hasTextContent()) continue
 
-        if (!file.canRead()) {
-            logger.warn("Cannot process file ${file.path}, skip")
-            continue
-        }
-
         process(file)
     }
 }

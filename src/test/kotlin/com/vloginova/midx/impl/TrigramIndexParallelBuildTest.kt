@@ -26,8 +26,8 @@ class TrigramIndexParallelBuildTest {
     fun `Ensure sequential index building produce the same result as parallel`() {
         runBlocking {
             val indexBuiltSequentially =
-                buildIndexAsync(rootFolder, newSingleThreadContext("Test")).await() as TrigramIndex
-            val indexBuiltInParallel = buildIndexAsync(rootFolder).await() as TrigramIndex
+                buildIndexAsync(rootDirectory, newSingleThreadContext("Test")).await() as TrigramIndex
+            val indexBuiltInParallel = buildIndexAsync(rootDirectory).await() as TrigramIndex
 
             assertEquals(indexBuiltSequentially, indexBuiltInParallel)
         }
@@ -36,7 +36,7 @@ class TrigramIndexParallelBuildTest {
     @Test
     fun `Check build cancellation`() {
         runBlocking {
-            val indexBuiltInParallel = buildIndexAsync(rootFolder)
+            val indexBuiltInParallel = buildIndexAsync(rootDirectory)
             val cancellationTime = measureTimeMillis { indexBuiltInParallel.cancelAndJoin() }
             assertEquals(true, indexBuiltInParallel.isCancelled)
             assertTrue(cancellationTime < 100)
@@ -60,33 +60,63 @@ class TrigramIndexParallelBuildTest {
     }
 
     companion object {
-        private val rootFolder = createTempDir()
+        private val rootDirectory = createTempDir()
 
         @JvmStatic
         @BeforeAll
         fun generateInputData() {
-            val directories = ArrayList<File>()
-            directories.add(rootFolder)
-
-            repeat(10) {
-                createTempDir(prefix = "Dir$it", directory = directories[Random.nextInt(0, directories.size)])
-            }
-
-            repeat(100) {
-                val file =
-                    createTempFile(prefix = "File$it", directory = directories[Random.nextInt(0, directories.size)])
-                val text = (1..Random.nextInt(100, 2 * 1024 * 1024))
-                    .map { Random.nextInt(0, alphabet.size) }
-                    .map(alphabet::get)
-                    .joinToString("")
-                file.writeText(text, Charsets.UTF_8)
-            }
+            generateInputData(rootDirectory)
         }
 
         @JvmStatic
         @AfterAll
         fun cleanUpInputData() {
-            rootFolder.deleteRecursively()
+            cleanUpInputData(rootDirectory)
         }
     }
+}
+
+class ExceptionHandlingTrigramIndexTest {
+    @Test
+    fun `Check index is build without exception when input files are cleaned up`() {
+        val rootDirectory = createTempDir()
+        generateInputData(rootDirectory)
+        val unprocessedFiles = mutableListOf<String>()
+        runBlocking {
+            val indexBuiltInParallel = buildIndexAsync(rootDirectory, handleUnprocessedFiles = {
+                listItem -> unprocessedFiles.addAll(listItem)
+            })
+            delay(100L)
+            cleanUpInputData(rootDirectory)
+            indexBuiltInParallel.await()
+        }
+        assertTrue(unprocessedFiles.isNotEmpty())
+        assertTrue(unprocessedFiles.size < fileNumber)
+    }
+}
+
+private const val fileNumber = 100
+private const val folderNumber = 10
+
+private fun generateInputData(rootDirectory:File) {
+    val directories = ArrayList<File>()
+    directories.add(rootDirectory)
+
+    repeat(folderNumber) {
+        createTempDir(prefix = "Dir$it", directory = directories[Random.nextInt(0, directories.size)])
+    }
+
+    repeat(fileNumber) {
+        val file =
+            createTempFile(prefix = "File$it", directory = directories[Random.nextInt(0, directories.size)])
+        val text = (1..Random.nextInt(100, 2 * 1024 * 1024))
+            .map { Random.nextInt(0, alphabet.size) }
+            .map(alphabet::get)
+            .joinToString("")
+        file.writeText(text, Charsets.UTF_8)
+    }
+}
+
+private fun cleanUpInputData(directory: File) {
+    directory.deleteRecursively()
 }
