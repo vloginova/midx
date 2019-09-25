@@ -77,7 +77,7 @@ internal class TrigramUtilsTest {
     ) {
         val tempFile = createTempFile()
         tempFile.writeText(text)
-        val trigramSet = createTrigramSet(tempFile, bufferSize)
+        val trigramSet = createTrigramSet(tempFile, bufferSize = bufferSize)
         assertEquals(
             expectedNumberOfTrigrams,
             trigramSet.size,
@@ -88,7 +88,7 @@ internal class TrigramUtilsTest {
     @Test
     fun `Check that for to small buffer size createTrigramSet() throws exception`() {
         val tempFile = createTempFile()
-        assertThrows<IllegalArgumentException> { createTrigramSet(tempFile, 2) }
+        assertThrows<IllegalArgumentException> { createTrigramSet(tempFile, bufferSize = 2) }
     }
 
     @ParameterizedTest
@@ -104,7 +104,7 @@ internal class TrigramUtilsTest {
     fun `Check createTrigramSet(File) for multiline inputs`(input: String) {
         val tempFile = createTempFile()
         tempFile.writeText(input)
-        val trigramsForInputWithLfOnly = createTrigramSet(tempFile, 3).toSet()
+        val trigramsForInputWithLfOnly = createTrigramSet(tempFile, bufferSize = 3).toSet()
         val trigramsForInput = createTrigramSet(input.replaceFileSeparatorsWithLf()).toSet()
         assertEquals(trigramsForInput, trigramsForInputWithLfOnly)
     }

@@ -22,14 +22,18 @@ fun createTrigramSet(text: String): TrigramSet {
  * Creates Trigram Set for a given [file].
  * Line separators CR, CRLF and LF are treated uniformly.
  */
-fun createTrigramSet(file: File, bufferSize: Int = defaultBufferSize): TrigramSet {
+fun createTrigramSet(
+    file: File,
+    isCanceled: () -> Boolean = { false },
+    bufferSize: Int = defaultBufferSize
+): TrigramSet {
     require(bufferSize >= 3) { "Trigram buffer size cannot be less than 3" }
 
     val trigramSet = TrigramSet(calculateInitialTrigramSetSize(file.length()))
     val buffer = CharArray(bufferSize)
     file.bufferedReader(Charsets.UTF_8).use {
         var accumulatedCharsNumber = 0
-        while (true) {
+        while (!isCanceled()) {
             val readCharsNumber = it.read(buffer, accumulatedCharsNumber, buffer.size - accumulatedCharsNumber)
             if (readCharsNumber < 0) break
 

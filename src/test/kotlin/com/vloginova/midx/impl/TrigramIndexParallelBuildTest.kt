@@ -33,6 +33,16 @@ class TrigramIndexParallelBuildTest {
         }
     }
 
+    @Test
+    fun `Check build cancellation`() {
+        runBlocking {
+            val indexBuiltInParallel = buildIndexAsync(rootFolder)
+            val cancellationTime = measureTimeMillis { indexBuiltInParallel.cancelAndJoin() }
+            assertEquals(true, indexBuiltInParallel.isCancelled)
+            assertTrue(cancellationTime < 100)
+        }
+    }
+
     private fun assertEquals(expectedIndex: TrigramIndex, actualIndex: TrigramIndex) {
         val field =
             TrigramIndex::class.memberProperties.first { it.name == "indexStorage" } as KProperty1<TrigramIndex, TrigramIndexStorage>

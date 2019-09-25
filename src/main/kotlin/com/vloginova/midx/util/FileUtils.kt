@@ -6,6 +6,7 @@ import mu.KotlinLogging
 import java.io.File
 import java.nio.file.Files
 import java.util.*
+
 /**
  * MIME types that do not start with 'text/', but having text-based content. The list is not complete, it was composed
  * based on files from <a href="https://github.com/JetBrains/intellij-community">IntelliJ IDEA Community Edition</a>
@@ -25,7 +26,7 @@ private val lineSeparatorRegex = Regex("\\r\\n|\\n|\\r")
 
 fun File.forEachFile(process: (File) -> Unit) {
     val suspendProcess: suspend (File) -> Unit = { process(it) }
-    runBlocking { this@forEachFile.forEachFileSuspend(suspendProcess) }
+    runBlocking { this@forEachFile.forEachFileSuspend(process = suspendProcess) }
 }
 
 /**
@@ -33,8 +34,10 @@ fun File.forEachFile(process: (File) -> Unit) {
  * and can be read. A content type is defined by [Files.probeContentType], and it is considered to be text when it has
  * text/\* MIME type or it is listed in [otherTextMimeTypes].
  */
-suspend fun File.forEachFileSuspend(process: suspend (File) -> Unit) {
+suspend fun File.forEachFileSuspend(isCanceled: () -> Boolean = {false}, process: suspend (File) -> Unit) {
     for (file in walk()) {
+        if (isCanceled()) return
+
         if (!file.isFile) continue
 
         if (!file.hasTextContent()) continue
@@ -112,6 +115,7 @@ private fun List<String>.startsWith(another: List<String>): Boolean {
     }
     return true
 }
+
 fun String.replaceFileSeparatorsWithLf(): String {
     return replace(lineSeparatorRegex, "\n")
 }

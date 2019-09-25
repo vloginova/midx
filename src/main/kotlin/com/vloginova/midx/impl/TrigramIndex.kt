@@ -2,9 +2,12 @@ package com.vloginova.midx.impl
 
 import com.vloginova.midx.api.Index
 import com.vloginova.midx.api.SearchResult
-import com.vloginova.midx.util.*
-import com.vloginova.midx.util.collections.TrigramSet
 import com.vloginova.midx.util.collections.TrigramIndexStorage
+import com.vloginova.midx.util.collections.TrigramSet
+import com.vloginova.midx.util.createTrigramSet
+import com.vloginova.midx.util.forEachFile
+import com.vloginova.midx.util.forEachFileSuspend
+import com.vloginova.midx.util.fullTextSearch
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import java.io.File
@@ -20,8 +23,12 @@ fun buildIndexAsync(file: File, coroutineDispatcher: CoroutineDispatcher = deful
 
     fun CoroutineScope.produceFileIndexes() {
         val fileIndexesProducer = launch {
-            file.forEachFileSuspend {
-                launch { fileIndexChannel.send(FileIndex(it.path, createTrigramSet(it))) }
+            val isCanceled = { !isActive }
+            file.forEachFileSuspend (isCanceled) {
+                launch {
+                    val fileIndex = FileIndex(it.path, createTrigramSet(it, isCanceled))
+                    fileIndexChannel.send(fileIndex)
+                }
             }
         }
         launch {
