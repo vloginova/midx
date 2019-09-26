@@ -1,8 +1,7 @@
 package com.vloginova.midx.util
 
 import com.vloginova.midx.util.collections.IntSet
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
@@ -50,7 +49,7 @@ internal class IntSetTest {
     fun `Check IntSet isEmpty() when non-empty`() {
         val intSet = IntSet()
         intSet.add(5)
-        assertEquals(5, intSet.first(), "IntSet.isEmpty() returns true when non-empty")
+        assertFalse(intSet.isEmpty(), "IntSet.isEmpty() returns true when non-empty")
     }
 
     @ParameterizedTest
