@@ -5,40 +5,56 @@ import com.vloginova.midx.api.SearchResult
 import com.vloginova.midx.util.collections.TrigramIndexStorage
 import com.vloginova.midx.util.collections.TrigramSet
 import com.vloginova.midx.util.createTrigramSet
-import com.vloginova.midx.util.forEachFile
-import com.vloginova.midx.util.forEachFileSuspend
 import com.vloginova.midx.util.fullTextSearch
+import com.vloginova.midx.util.parallelMapNotNull
+import com.vloginova.midx.util.walkTextFiles
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.collect
 import java.io.File
 import java.io.IOException
+import kotlin.coroutines.ContinuationInterceptor
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.coroutines.coroutineContext
 
 private val availableProcessors = Runtime.getRuntime().availableProcessors()
 @UseExperimental(ObsoleteCoroutinesApi::class)
-private val defaultCoroutineDispatcher = newFixedThreadPoolContext(availableProcessors + 1, "Trigram Index Builder")
+private val defaultDispatcher = lazy { newFixedThreadPoolContext(availableProcessors + 1, "Trigram Index Builder") }
+
+// Number of files that can be processed at the same simultaneously
+private const val trigramBuilderParallelism = 500
 
 /**
- * The thread safe implementation of index, keys are implemented as trigrams
+ * Implementation of [Index] represented as a reverse index with a trigram as a key. The class is immutable, so it can
+ * be safely used for searching in multi thread context.
+ *
+ * Index does not support incremental updates.
  * TODO: accept several files
  */
-class TrigramIndex(private val file: File, private val indexStorage: TrigramIndexStorage) : Index {
+class TrigramIndex(private val rootDirectory: File, private val indexStorage: TrigramIndexStorage) : Index {
 
+    /**
+     * Searches for [text] in the [TrigramIndex]. The implementation is effective for searches of input of length
+     * greater that 3. For short inputs it searches fulltext.
+     *
+     * [processMatch] is called as soon as it is found.
+     */
     override fun search(text: String, processMatch: (SearchResult) -> Unit) {
         if (text.isEmpty()) return
 
         if (text.length < 3) {
-            file.forEachFile {
+            rootDirectory.walkTextFiles().forEach {
                 it.fullTextSearch(text, processMatch)
             }
         } else {
             matchingFileCandidates(text, indexStorage).forEach { filePath ->
-                File(filePath).fullTextSearch(text, processMatch)
+                filePath.fullTextSearch(text, processMatch)
             }
         }
     }
 
-    private fun matchingFileCandidates(text: String, indexIndexStorage: TrigramIndexStorage): Collection<String> {
+    private fun matchingFileCandidates(text: String, indexIndexStorage: TrigramIndexStorage): Collection<File> {
         check(text.length >= 3) { "Cannot search in index inputs with length les than 3" }
 
         val trigrams = createTrigramSet(text)
@@ -51,62 +67,64 @@ class TrigramIndex(private val file: File, private val indexStorage: TrigramInde
 
 }
 
-private data class FileIndex(val file: String, val trigrams: TrigramSet)
+private data class FileIndex(val file: File, val trigrams: TrigramSet)
 
-@ExperimentalCoroutinesApi
-@UseExperimental(InternalCoroutinesApi::class)
+/**
+ * Initiate [Index] building with [context] for [rootDirectory]. If a context doesn't have any
+ * [ContinuationInterceptor.Key], [defaultDispatcher] will be used.
+ *
+ * TODO: Handle unprocessed files strategy
+ */
 fun buildIndexAsync(
-    file: File,
-    dispatcher: CoroutineDispatcher = defaultCoroutineDispatcher,
+    rootDirectory: File,
+    context: CoroutineContext = EmptyCoroutineContext,
     handleUnprocessedFile: ((String) -> Unit) = { _ -> }
-): Deferred<Index> =
-    GlobalScope.async(dispatcher) {
-        val storage = fileFlow(file)
-            .parallelMapNotNull(1000) {
-                produceFileIndexes(it, handleUnprocessedFile)
-            }
-            .fold(TrigramIndexStorage()) { storage: TrigramIndexStorage, fileIndex: FileIndex ->
-                storage.populateWith(fileIndex)
-                return@fold storage
-            }
-        return@async TrigramIndex(file, storage)
+): Deferred<TrigramIndex> {
+    var contextWithDispatcher = context
+    if (context[ContinuationInterceptor.Key] == null) contextWithDispatcher += defaultDispatcher.value
+    return GlobalScope.async(contextWithDispatcher) {
+        buildIndex(rootDirectory, handleUnprocessedFile)
     }
+}
 
-private fun fileFlow(file: File): Flow<File> =
-    flow {
-        file.forEachFileSuspend { emit(it) }
-    }
+suspend fun buildIndex(
+    rootDirectory: File,
+    handleUnprocessedFile: ((String) -> Unit) = { _ -> }
+): TrigramIndex {
+    val storage = TrigramIndexStorage()
+    // The index can be efficiently built with MapReduce pattern. Map runs in parallel, which easily improves
+    // performance because of huge amount of IO operations together with computational ones. Reduce, however,
+    // only uses CPU resources, and it is executed in parallel with map step. Experiments didn't show any
+    // significant performance improvement when running reduce step in parallel, so it was decided not to complicate
+    // the solution.
+    rootDirectory.walkTextFiles().asFlow()
+        .parallelMapNotNull(trigramBuilderParallelism) { file ->
+            tryCreateFileIndex(file, handleUnprocessedFile, coroutineContext::ensureActive)
+        }
+        .collect { fileIndex ->
+            storage.populateWith(fileIndex)
+        }
+    return TrigramIndex(rootDirectory, storage)
+}
 
-private fun CoroutineScope.produceFileIndexes(file: File, handleUnprocessedFile: ((String) -> Unit)): FileIndex? {
-    try {
-        return FileIndex(file.path, createTrigramSet(file, isCanceled = { !isActive }))
+
+private fun tryCreateFileIndex(
+    file: File,
+    handleUnprocessedFile: (String) -> Unit,
+    checkCancelled: () -> Unit
+): FileIndex? {
+    return try {
+        val trigrams = createTrigramSet(file, checkCancelled = checkCancelled)
+        FileIndex(file, trigrams)
     } catch (_: IOException) {
         handleUnprocessedFile(file.path)
+        null
     }
-    return null
 }
 
 private fun TrigramIndexStorage.populateWith(fileIndex: FileIndex) {
     for (trigram in fileIndex.trigrams) {
-         computeIfAbsent(trigram) { ArrayList() }
-             .also { files -> files.add(fileIndex.file) }
+        computeIfAbsent(trigram) { ArrayList() }
+            .also { files -> files.add(fileIndex.file) }
     }
 }
-
-@ExperimentalCoroutinesApi
-private inline fun <T, R> Flow<T>.parallelMapNotNull(
-    parallelism: Int,
-    crossinline transform: suspend (value: T) -> R?
-): Flow<R> =
-    channelFlow {
-        val semaphore = Semaphore(parallelism)
-        collect { value ->
-            semaphore.acquire()
-            launch {
-                val result = transform(value) ?: return@launch
-                send(result)
-            }.invokeOnCompletion {
-                semaphore.release()
-            }
-        }
-    }.buffer(parallelism)

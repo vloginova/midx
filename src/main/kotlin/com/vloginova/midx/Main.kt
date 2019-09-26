@@ -76,8 +76,8 @@ private fun cancelBuild(deferredIndex: Deferred<Index>) {
 
 private fun searchInIndex(index: Index, text: String) {
     val timeMillis = measureTimeMillis {
-        index.search(text) { (fileName, matchingText, startIdx, endIdx) ->
-            prettyPrint(fileName, FontStyle.BOLD)
+        index.search(text) { (file, matchingText, startIdx, endIdx) ->
+            prettyPrint(file.path, FontStyle.BOLD)
             prettyPrint(": ", FontStyle.BOLD)
 
             print(matchingText.take(startIdx))

@@ -10,21 +10,26 @@ import java.util.stream.Stream
 
 internal class FileUtilsKtTest {
     companion object {
-        private const val testFile = "/simpleTestFiles/text2.txt"
-        val file = File(FileUtilsKtTest::class.java.getResource(testFile).file)
+        private const val testFilePath = "/simpleTestFiles/text2.txt"
+        val file = File(FileUtilsKtTest::class.java.getResource(testFilePath).file)
 
+        init {
+            file.deleteOnExit()
+        }
+
+        @Suppress("unused")
         @JvmStatic
         fun testDataProvider(): Stream<Pair<String, Array<SearchResult>>> {
             return Stream.of(
                 Pair(
                     "Autumn is", arrayOf(
-                        SearchResult("/simpleTestFiles/text2.txt", "Autumn is over the long leaves that love us,", 0, 9)
+                        SearchResult(file, "Autumn is over the long leaves that love us,", 0, 9)
                     )
                 ),
                 Pair(
                     "love us,", arrayOf(
                         SearchResult(
-                            "/simpleTestFiles/text2.txt",
+                            file,
                             "Autumn is over the long leaves that love us,",
                             36,
                             44
@@ -34,7 +39,7 @@ internal class FileUtilsKtTest {
                 Pair(
                     "r the long l", arrayOf(
                         SearchResult(
-                            "/simpleTestFiles/text2.txt",
+                            file,
                             "Autumn is over the long leaves that love us,",
                             13,
                             25
@@ -44,18 +49,18 @@ internal class FileUtilsKtTest {
                 Pair(
                     "us", arrayOf(
                         SearchResult(
-                            "/simpleTestFiles/text2.txt",
+                            file,
                             "Autumn is over the long leaves that love us,",
                             41,
                             43
                         ),
-                        SearchResult("/simpleTestFiles/text2.txt", "Yellow the leaves of the rowan above us,", 37, 39)
+                        SearchResult(file, "Yellow the leaves of the rowan above us,", 37, 39)
                     )
                 ),
                 Pair(
                     "sheaves;\nYellow", arrayOf(
                         SearchResult(
-                            "/simpleTestFiles/text2.txt", "And over the mice in the barley sheaves;\n" +
+                            file, "And over the mice in the barley sheaves;\n" +
                                     "Yellow the leaves of the rowan above us,", 32, 47
                         )
                     )
@@ -63,38 +68,44 @@ internal class FileUtilsKtTest {
                 Pair(
                     "us,\nAnd", arrayOf(
                         SearchResult(
-                            "/simpleTestFiles/text2.txt", "Autumn is over the long leaves that love us,\n" +
+                            file, "Autumn is over the long leaves that love us,\n" +
                                     "And over the mice in the barley sheaves;", 41, 48
                         ),
                         SearchResult(
-                            "/simpleTestFiles/text2.txt", "Yellow the leaves of the rowan above us,\n" +
+                            file, "Yellow the leaves of the rowan above us,\n" +
                                     "And yellow the wet wild-strawberry leaves.", 37, 44
                         )
                     )
                 ),
                 Pair(
                     "love us,\n", arrayOf(
-                        SearchResult("/simpleTestFiles/text2.txt", "Autumn is over the long leaves that love us,\n" +
-                                "And over the mice in the barley sheaves;", 36, 45)
+                        SearchResult(
+                            file, "Autumn is over the long leaves that love us,\n" +
+                                    "And over the mice in the barley sheaves;", 36, 45
+                        )
                     )
                 ),
                 Pair(
                     "love us,\r", arrayOf(
-                        SearchResult("/simpleTestFiles/text2.txt", "Autumn is over the long leaves that love us,\n" +
-                                "And over the mice in the barley sheaves;", 36, 45)
+                        SearchResult(
+                            file, "Autumn is over the long leaves that love us,\n" +
+                                    "And over the mice in the barley sheaves;", 36, 45
+                        )
                     )
                 ),
                 Pair(
                     "love us,\r\n", arrayOf(
-                        SearchResult("/simpleTestFiles/text2.txt", "Autumn is over the long leaves that love us,\n" +
-                                "And over the mice in the barley sheaves;", 36, 45)
+                        SearchResult(
+                            file, "Autumn is over the long leaves that love us,\n" +
+                                    "And over the mice in the barley sheaves;", 36, 45
+                        )
                     )
                 ),
                 Pair(
-                    "love us,\n\n",  emptyArray()
+                    "love us,\n\n", emptyArray()
                 ),
                 Pair(
-                    "love us,\r\r",  emptyArray()
+                    "love us,\r\r", emptyArray()
                 ),
                 Pair(
                     "no match", emptyArray()
@@ -132,10 +143,7 @@ internal class FileUtilsKtTest {
 
     private fun collectMatches(searchText: String): Collection<SearchResult> {
         val matches = ArrayList<SearchResult>()
-        file.fullTextSearch(searchText) {
-            val simplifiedFileName = it.filePath.replaceFirst(Regex(".*${testFile}"), testFile)
-            matches.add(SearchResult(simplifiedFileName, it.matchingText, it.startIndex, it.endIndex))
-        }
+        file.fullTextSearch(searchText) { matches.add(it) }
         return matches
     }
 }

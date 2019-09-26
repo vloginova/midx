@@ -33,7 +33,8 @@ test {
 
 compileKotlin {
     kotlinOptions {
-        freeCompilerArgs += "-Xuse-experimental=kotlin.Experimental"
+        freeCompilerArgs += ["-Xuse-experimental=kotlin.Experimental",
+                             "-Xuse-experimental=kotlinx.coroutines.ExperimentalCoroutinesApi"]
         jvmTarget = "1.8"
     }
 }

@@ -1,13 +1,14 @@
 package com.vloginova.midx.util
 
+import com.vloginova.midx.generateIntWithHashcodeFor
+import com.vloginova.midx.getRandomInt
+import com.vloginova.midx.toSet
 import com.vloginova.midx.util.collections.IntSet
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
-import java.util.stream.Collectors.toSet
-import kotlin.random.Random
 
 internal class IntSetTest {
     @Test
