@@ -2,41 +2,92 @@ package com.vloginova.midx
 
 import com.vloginova.midx.api.Index
 import com.vloginova.midx.impl.buildIndexAsync
-import com.vloginova.midx.util.FontStyle
-import com.vloginova.midx.util.prettyPrint
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 import java.io.File
 import kotlin.system.measureTimeMillis
 
-fun main(args: Array<String>) {
-    require(args.size == 2) { "Exactly two arguments expected, was ${args.size}" }
+const val inviteToSearch = "Please type something request to search:"
+const val inviteToWaitOrCancel = "Please wait for its completion or type 'cancel':"
+const val inviteToToBuild = "Please input a root directory path to start an index build:"
 
-    var index : Index? = null
-    val timeMillis = measureTimeMillis {
-        val simpleIndex = buildIndexAsync(File(args[0]))
-        runBlocking {
-            index = simpleIndex.await()
+@UseExperimental(ExperimentalCoroutinesApi::class)
+fun main() {
+    println("Welcome to Midx demo.")
+    println(inviteToToBuild)
+    val root = getInputDirectory()
+
+    val startTime = System.currentTimeMillis()
+    val deferredIndex = buildIndexAsync(root)
+
+    awaitInBackground(deferredIndex, startTime)
+        .invokeOnCompletion {
+            if (!deferredIndex.isCancelled) println(inviteToSearch)
+        }
+
+    println("Index is building. $inviteToWaitOrCancel")
+    while (true) {
+        val line = readLine()
+        if (line.isNullOrEmpty()) continue
+
+        if (!deferredIndex.isCompleted) {
+            if (line == "cancel") {
+                cancelBuild(deferredIndex)
+                if (deferredIndex.isCancelled) return
+            }
+            println("Build is not yet completed. $inviteToWaitOrCancel")
+            continue
+        }
+
+        val index: Index = runBlocking { deferredIndex.await() }
+        searchInIndex(index, line)
+        println(inviteToSearch)
+    }
+}
+
+private fun getInputDirectory(): File {
+    while (true) {
+        val filePath = readLine()
+        if (filePath.isNullOrEmpty()) continue
+
+        val file = File(filePath)
+        when {
+            !file.exists() -> println("'$filePath' doesn't exist. Please try again:")
+            !file.canRead() -> println("'$filePath' cannot be read. Please try again:")
+            else -> return file
         }
     }
+}
 
-    val text = args[1]
-    index?.search(text) { (fileName, matchingText, startIdx, endIdx) ->
-        prettyPrint(fileName, FontStyle.BOLD)
-        prettyPrint(": ", FontStyle.BOLD)
-
-        print(matchingText.take(startIdx))
-        prettyPrint(matchingText.substring(startIdx, endIdx), FontStyle.BOLD, FontStyle.RED)
-        println(matchingText.drop(endIdx))
+private fun awaitInBackground(deferredIndex: Deferred<Index>, startTime: Long): Job =
+    GlobalScope.launch {
+        deferredIndex.await()
+        val endTime = System.currentTimeMillis()
+        println("The index was built in ${endTime - startTime} ms.")
     }
-    println("Indexing time: $timeMillis")
 
-//    println("Collisions count: ${AddOnlyIntSet.collisionsCounter}")
-//    println("Resize count: ${AddOnlyIntSet.counter}")
-//    println("Bytes total : ${AddOnlyIntSet.totalBytes.get() / 1024 / 1024}M")
+private fun cancelBuild(deferredIndex: Deferred<Index>) {
+    val timeMillis = measureTimeMillis {
+        runBlocking {
+            deferredIndex.cancelAndJoin()
+        }
+    }
+    if (deferredIndex.isCancelled) println("The build was cancelled in $timeMillis ms")
+}
 
-//    val file = File("stat.csv")
-//    file.createNewFile()
-//    pairs.shuffled().take(10000).forEach {
-//        file.appendText( "${it.first},${it.second}\n")
-//    }
+private fun searchInIndex(index: Index, text: String) {
+    val timeMillis = measureTimeMillis {
+        index.search(text) { (fileName, matchingText, startIdx, endIdx) ->
+            prettyPrint(fileName, FontStyle.BOLD)
+            prettyPrint(": ", FontStyle.BOLD)
+
+            print(matchingText.take(startIdx))
+            prettyPrint(
+                matchingText.substring(startIdx, endIdx),
+                FontStyle.BOLD,
+                FontStyle.RED
+            )
+            println(matchingText.drop(endIdx))
+        }
+    }
+    println("The search was completed in $timeMillis ms.")
 }
