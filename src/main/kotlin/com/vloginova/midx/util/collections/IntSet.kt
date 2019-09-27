@@ -12,7 +12,7 @@ class IntSet(initialCapacity: Int = 1 shl 8) {
         private set
 
     init {
-        array = IntArray(Integer.highestOneBit(initialCapacity) shl 1)
+        array = IntArray(Integer.highestOneBit(initialCapacity * 3 / 2) shl 1)
         mask = array.size - 1
     }
 
@@ -25,7 +25,6 @@ class IntSet(initialCapacity: Int = 1 shl 8) {
             return
         }
 
-        // TODO: optimize load factor
         if (size >= 2 * array.size / 3) {
             resize()
         }

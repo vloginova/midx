@@ -1,8 +1,8 @@
-package com.vloginova.midx.util
+package com.vloginova.midx.impl
 
 import com.vloginova.midx.alphabet
 import com.vloginova.midx.createTempFileWithText
-import com.vloginova.midx.toSet
+import com.vloginova.midx.util.replaceFileSeparatorsWithLf
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -12,7 +12,7 @@ import org.junit.jupiter.params.provider.MethodSource
 import java.util.stream.Stream
 import kotlin.random.Random
 
-internal class TrigramUtilsTest {
+internal class TrigramSetTest {
 
     companion object {
         private const val palindrome = "I did did I"
@@ -64,14 +64,14 @@ internal class TrigramUtilsTest {
     fun `Check that each 3-char text key from palindromeTrigrams has expected trigram value`() {
         assertAll(palindromeTrigrams.map {
             Executable {
-                assertEquals(it.value, createTrigramSet(it.key).first(), "Trigram for ${it.key} has unexpected value")
+                assertEquals(it.value, TrigramSet.from(it.key).first(), "Trigram for ${it.key} has unexpected value")
             }
         })
     }
 
     @Test
     fun `Check that expected trigram set is created for palindrome`() {
-        val trigramSet = createTrigramSet(palindrome).toSet()
+        val trigramSet = TrigramSet.from(palindrome).toSet()
         assertAll(trigramSet.map {
             Executable {
                 assertTrue(palindromeTrigrams.containsValue(it), "Result has unexpected trigram $it")
@@ -86,7 +86,7 @@ internal class TrigramUtilsTest {
 
     @Test
     fun `Check for expected collisions`() {
-        assertEquals(createTrigramSet("aMN").first(), createTrigramSet("aIю").first())
+        assertEquals(TrigramSet.from("aMN").first(), TrigramSet.from("aIю").first())
     }
 
     @ParameterizedTest
@@ -94,13 +94,13 @@ internal class TrigramUtilsTest {
     fun `Check that each input text has expected number of trigrams`(testData: Pair<String, Int>) {
         val text = testData.first
         val expectedNumberOfTrigrams = testData.second
-        val trigramSet = createTrigramSet(text)
+        val trigramSet = TrigramSet.from(text)
         assertEquals(expectedNumberOfTrigrams, trigramSet.size, "Unexpected number of trigrams for $text")
     }
 
     @Test
-    fun `Check that for empty string createTrigramSet() created empty trigram set`() {
-        val trigramSet = createTrigramSet("")
+    fun `Check that for empty string TrigramSet from() created empty trigram set`() {
+        val trigramSet = TrigramSet.from("")
         assertTrue(trigramSet.isEmpty(), "Non-empty set for empty input")
     }
 
@@ -110,7 +110,7 @@ internal class TrigramUtilsTest {
         val text = testData.first
         val expectedNumberOfTrigrams = testData.second
         val tempFile = createTempFileWithText(text)
-        val trigramSet = createTrigramSet(tempFile, bufferSize = 6)
+        val trigramSet = TrigramSet.from(tempFile, bufferSize = 6)
         assertEquals(
             expectedNumberOfTrigrams,
             trigramSet.size,
@@ -119,45 +119,53 @@ internal class TrigramUtilsTest {
     }
 
     @Test
-    fun `Check that for empty file createTrigramSet() created empty trigram set`() {
+    fun `Check that for empty file TrigramSet from() created empty trigram set`() {
         val tempFile = createTempFileWithText("")
-        val trigramSet = createTrigramSet(tempFile)
+        val trigramSet = TrigramSet.from(tempFile)
         assertTrue(trigramSet.isEmpty(), "Non-empty set for empty file")
     }
 
     @Test
-    fun `Check that for to small buffer size createTrigramSet() throws exception`() {
+    fun `Check that for to small buffer size TrigramSet from() throws exception`() {
         val tempFile = createTempFileWithText("")
-        assertThrows<IllegalArgumentException> { createTrigramSet(tempFile, bufferSize = 2) }
+        assertThrows<IllegalArgumentException> { TrigramSet.from(tempFile, bufferSize = 2) }
     }
 
     @ParameterizedTest
     @MethodSource("dataProviderForMultilineInputsTest")
-    fun `Check createTrigramSet(String) for multiline inputs`(input: String) {
-        val trigramsForInputWithLfOnly = createTrigramSet(input.replaceFileSeparatorsWithLf()).toSet()
-        val trigramsForInput = createTrigramSet(input).toSet()
+    fun `Check TrigramSet from(String) for multiline inputs`(input: String) {
+        val trigramsForInputWithLfOnly = TrigramSet.from(input.replaceFileSeparatorsWithLf()).toSet()
+        val trigramsForInput = TrigramSet.from(input).toSet()
         assertEquals(trigramsForInputWithLfOnly, trigramsForInput)
     }
 
     @ParameterizedTest
     @MethodSource("dataProviderForMultilineInputsTest")
-    fun `Check createTrigramSet(File) for multiline inputs`(input: String) {
+    fun `Check TrigramSet from(File) for multiline inputs`(input: String) {
         val tempFile = createTempFileWithText(input)
-        val trigramsForInputWithLfOnly = createTrigramSet(tempFile, bufferSize = 6).toSet()
-        val trigramsForInput = createTrigramSet(input.replaceFileSeparatorsWithLf()).toSet()
+        val trigramsForInputWithLfOnly = TrigramSet.from(tempFile, bufferSize = 6).toSet()
+        val trigramsForInput = TrigramSet.from(input.replaceFileSeparatorsWithLf()).toSet()
         assertEquals(trigramsForInput, trigramsForInputWithLfOnly)
     }
 
     @Test
-    fun `Check that createTrigramSet() behavior with default buffer size is the same as of string method version`() {
+    fun `Check that TrigramSet from() behavior with default buffer size is the same as of string method version`() {
         val text = (1..10 * 1024)
             .map { Random.nextInt(0, alphabet.size) }
             .map(alphabet::get)
             .joinToString("")
         val tempFile = createTempFileWithText(text)
-        val trigramsFromFile = createTrigramSet(tempFile).toSet()
-        val trigramsFromString = createTrigramSet(text).toSet()
+        val trigramsFromFile = TrigramSet.from(tempFile).toSet()
+        val trigramsFromString = TrigramSet.from(text).toSet()
         assertEquals(trigramsFromString, trigramsFromFile)
+    }
+
+    private fun TrigramSet.toSet(): Set<Int> {
+        val set = HashSet<Int>()
+        for (value in this) {
+            set.add(value)
+        }
+        return set
     }
 
     private fun assertEquals(expectedSet: Set<Int>, actualSet: Set<Int>) {

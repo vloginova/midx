@@ -1,7 +1,6 @@
 package com.vloginova.midx.impl
 
 import com.vloginova.midx.generateRandomText
-import com.vloginova.midx.util.collections.TrigramIndexStorage
 import kotlinx.coroutines.*
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertEquals

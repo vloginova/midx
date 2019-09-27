@@ -2,9 +2,7 @@ package com.vloginova.midx.impl
 
 import com.vloginova.midx.api.Index
 import com.vloginova.midx.api.SearchResult
-import com.vloginova.midx.util.collections.TrigramIndexStorage
-import com.vloginova.midx.util.collections.TrigramSet
-import com.vloginova.midx.util.createTrigramSet
+import com.vloginova.midx.util.collections.IntKeyMap
 import com.vloginova.midx.util.fullTextSearch
 import com.vloginova.midx.util.parallelMapNotNull
 import com.vloginova.midx.util.walkTextFiles
@@ -32,7 +30,10 @@ private const val trigramBuilderParallelism = 500
  * Index does not support incremental updates.
  * TODO: accept several files
  */
-class TrigramIndex(private val rootDirectory: File, private val indexStorage: TrigramIndexStorage) : Index {
+class TrigramIndex internal constructor(
+    private val rootDirectory: File,
+    private val indexStorage: TrigramIndexStorage
+) : Index {
 
     /**
      * Searches for [text] in the [TrigramIndex]. The implementation is effective for searches of input of length
@@ -57,7 +58,7 @@ class TrigramIndex(private val rootDirectory: File, private val indexStorage: Tr
     private fun matchingFileCandidates(text: String, indexIndexStorage: TrigramIndexStorage): Collection<File> {
         check(text.length >= 3) { "Cannot search in index inputs with length les than 3" }
 
-        val trigrams = createTrigramSet(text)
+        val trigrams = TrigramSet.from(text)
         var intersection = indexIndexStorage[trigrams.first()]?.toSet() ?: emptySet()
         for (trigram in trigrams) {
             indexIndexStorage[trigram]?.let { intersection = intersection.intersect(it) }
@@ -67,7 +68,32 @@ class TrigramIndex(private val rootDirectory: File, private val indexStorage: Tr
 
 }
 
-private data class FileIndex(val file: File, val trigrams: TrigramSet)
+internal data class FileIndex(val file: File, val trigrams: TrigramSet)
+
+/**
+ * [TrigramIndexStorage] is an internal structure of [TrigramIndex]. Maps trigrams to the collection of files where
+ * it is present.
+ */
+internal class TrigramIndexStorage : Iterable<IntKeyMap.Entry<MutableList<File>>> {
+    private val internalMap = IntKeyMap<MutableList<File>>()
+
+    val size: Int
+        get() = internalMap.size
+
+    operator fun get(key: Int): MutableList<File>? = internalMap[key]
+
+    override fun iterator(): Iterator<IntKeyMap.Entry<MutableList<File>>> = internalMap.iterator()
+
+    /**
+     * Reverses [FileIndex] and populates [TrigramIndexStorage]
+     */
+    fun populateWith(fileIndex: FileIndex) {
+        for (trigram in fileIndex.trigrams) {
+            internalMap.computeIfAbsent(trigram) { ArrayList() }
+                .also { files -> files.add(fileIndex.file) }
+        }
+    }
+}
 
 /**
  * Initiate [Index] building with [context] for [rootDirectory]. If a context doesn't have any
@@ -114,17 +140,10 @@ private fun tryCreateFileIndex(
     checkCancelled: () -> Unit
 ): FileIndex? {
     return try {
-        val trigrams = createTrigramSet(file, checkCancelled = checkCancelled)
+        val trigrams = TrigramSet.from(file, checkCancelled = checkCancelled)
         FileIndex(file, trigrams)
     } catch (_: IOException) {
         handleUnprocessedFile(file.path)
         null
-    }
-}
-
-private fun TrigramIndexStorage.populateWith(fileIndex: FileIndex) {
-    for (trigram in fileIndex.trigrams) {
-        computeIfAbsent(trigram) { ArrayList() }
-            .also { files -> files.add(fileIndex.file) }
     }
 }

@@ -3,17 +3,17 @@ package com.vloginova.midx.util.collections
 /**
  * IntKeyMap is an open-addressing hash map, where key is a primitive Int.
  */
-class IntKeyMap<T>(initialCapacity: Int = 1 shl 4) : Iterable<IntKeyMap.Entity<T>> {
-    data class Entity<T>(val key: Int, val value: T)
+class IntKeyMap<T>(initialCapacity: Int = 1 shl 4) : Iterable<IntKeyMap.Entry<T>> {
+    data class Entry<T>(val key: Int, val value: T)
 
-    private var array: Array<Entity<T>?>
+    private var array: Array<Entry<T>?>
     private var mask: Int
 
     var size = 0
         private set
 
     init {
-        array = arrayOfNulls(Integer.highestOneBit(initialCapacity) shl 1)
+        array = arrayOfNulls(Integer.highestOneBit(initialCapacity * 3 / 2) shl 1)
         mask = array.size - 1
     }
 
@@ -22,7 +22,7 @@ class IntKeyMap<T>(initialCapacity: Int = 1 shl 4) : Iterable<IntKeyMap.Entity<T
 
         val i = getInsertionIndex(key)
         if (array[i] == null) {
-            array[i] = Entity(key, valueProducer.invoke())
+            array[i] = Entry(key, valueProducer.invoke())
             size++
         }
 
@@ -34,7 +34,7 @@ class IntKeyMap<T>(initialCapacity: Int = 1 shl 4) : Iterable<IntKeyMap.Entity<T
 
         val i = getInsertionIndex(key)
         if (array[i] == null) size++
-        array[i] = Entity(key, value)
+        array[i] = Entry(key, value)
     }
 
     private fun getInsertionIndex(key: Int): Int {
@@ -52,7 +52,7 @@ class IntKeyMap<T>(initialCapacity: Int = 1 shl 4) : Iterable<IntKeyMap.Entity<T
         return array[getInsertionIndex(key)]?.value
     }
 
-    override operator fun iterator(): Iterator<Entity<T>> = IntKeyMapIterator()
+    override operator fun iterator(): Iterator<Entry<T>> = IntKeyMapIterator()
 
     private fun resize() {
         val oldArray = array
@@ -67,11 +67,11 @@ class IntKeyMap<T>(initialCapacity: Int = 1 shl 4) : Iterable<IntKeyMap.Entity<T
         }
     }
 
-    private inner class IntKeyMapIterator : Iterator<Entity<T>> {
+    private inner class IntKeyMapIterator : Iterator<Entry<T>> {
         private var restElements = size
         private var index = 0
 
-        override fun next(): Entity<T> {
+        override fun next(): Entry<T> {
             try {
                 while (array[index] == null) {
                     index++
