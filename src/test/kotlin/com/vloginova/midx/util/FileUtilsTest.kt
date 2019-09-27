@@ -1,20 +1,24 @@
 package com.vloginova.midx.util
 
+import com.vloginova.midx.api.IOExceptionHandlingStrategy
+import com.vloginova.midx.api.IOExceptionHandlingStrategy.Strategy.*
 import com.vloginova.midx.api.SearchResult
 import com.vloginova.midx.assertCollectionEquals
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 import java.io.File
+import java.io.IOException
 import java.util.stream.Stream
 
-internal class FileUtilsKtTest {
+internal class FileUtilsSearchMethodsTest {
     companion object {
         private const val testFilePath = "/simpleTestFiles/text2.txt"
-        val file = File(FileUtilsKtTest::class.java.getResource(testFilePath).file)
-
-        init {
-            file.deleteOnExit()
-        }
+        val file = File(FileUtilsSearchMethodsTest::class.java.getResource(testFilePath).file)
 
         @Suppress("unused")
         @JvmStatic
@@ -127,6 +131,115 @@ internal class FileUtilsKtTest {
     fun testSearchResult(testData: Pair<String, Collection<SearchResult>>) {
         val matches = file.fullTextSearch(testData.first)
         assertCollectionEquals(testData.second, matches)
+    }
+
+}
+
+class FileUtilsTryProcessTest {
+    private lateinit var file: File
+
+    @BeforeEach
+    fun createEmptyTestFile() {
+        file = createTempFile()
+    }
+
+    @AfterEach
+    fun deleteTestFile() {
+        file.delete()
+    }
+
+    @Test
+    fun `Try process returns file content for existing file`() {
+        val text = "text"
+        file.writeText(text)
+        var callbackCallCount = 0
+        val bytes = file.tryProcess(IOExceptionHandlingStrategy(IGNORE) { _, _ ->
+            callbackCallCount++
+        }) {
+            file.readBytes()
+        }
+        assertEquals(0, callbackCallCount, "Unexpected callback call count")
+        assertEquals(text, String(bytes ?: ByteArray(0)), "Unexpected file content")
+    }
+
+    @Test
+    fun `Try process returns null with IGNORE strategy even though recreated`() {
+        file.delete()
+        var callbackCallCount = 0
+        val bytes = file.tryProcess(IOExceptionHandlingStrategy(IGNORE) { _, _ ->
+            file.createNewFile()
+            callbackCallCount++
+        }) {
+            file.readBytes()
+        }
+        assertEquals(1, callbackCallCount, "Unexpected callback call count")
+        assertNull(bytes, "Not null was returned for non-existing file")
+    }
+
+    @Test
+    fun `Try process returns null with RETRY_THEN_IGNORE strategy`() {
+        file.delete()
+        var callbackCallCount = 0
+        val bytes = file.tryProcess(IOExceptionHandlingStrategy(RETRY_THEN_IGNORE) { _, _ -> callbackCallCount++ }) {
+            file.readBytes()
+        }
+        assertEquals(2, callbackCallCount, "Unexpected callback call count")
+        assertNull(bytes, "Not null was returned for non-existing file")
+    }
+
+    @Test
+    fun `Try process reads file with RETRY_THEN_IGNORE strategy when recreated`() {
+        file.delete()
+        var callbackCallCount = 0
+        val bytes = file.tryProcess(IOExceptionHandlingStrategy(RETRY_THEN_IGNORE) { _, _ ->
+            file.createNewFile()
+            callbackCallCount++
+        }) {
+            file.readBytes()
+        }
+        assertEquals(1, callbackCallCount, "Unexpected callback call count")
+        assertNotNull(bytes, "Null was returned for existing file")
+    }
+
+    @Test
+    fun `Try process fails with ABORT strategy even though recreated`() {
+        file.delete()
+        var callbackCallCount = 0
+        assertThrows<IOException> {
+            file.tryProcess(IOExceptionHandlingStrategy(ABORT) { _, _ ->
+                file.createNewFile()
+                callbackCallCount++
+            }) {
+                file.readBytes()
+            }
+        }
+        assertEquals(1, callbackCallCount, "Unexpected callback call count")
+    }
+
+    @Test
+    fun `Try process fails with RETRY_THEN_ABORT strategy`() {
+        file.delete()
+        var callbackCallCount = 0
+        assertThrows<IOException> {
+            file.tryProcess(IOExceptionHandlingStrategy(RETRY_THEN_ABORT) { _, _ -> callbackCallCount++ }) {
+                file.readBytes()
+            }
+        }
+        assertEquals(2, callbackCallCount, "Unexpected callback call count")
+    }
+
+    @Test
+    fun `Try process reads file with RETRY_THEN_ABORT strategy when recreated`() {
+        file.delete()
+        var callbackCallCount = 0
+        val bytes = file.tryProcess(IOExceptionHandlingStrategy(RETRY_THEN_ABORT) { _, _ ->
+            file.createNewFile()
+            callbackCallCount++
+        }) {
+            file.readBytes()
+        }
+        assertEquals(1, callbackCallCount, "Unexpected callback call count")
+        assertNotNull(bytes, "Null was returned for existing file")
     }
 
 }

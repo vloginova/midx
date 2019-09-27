@@ -36,13 +36,6 @@ fun generateIntWithHashcodeFor(arrayCapacity: Int, expectedIndex: Int): Sequence
     }
 }
 
-fun createTempFileWithText(text: String): File {
-    val tempFile = createTempFile()
-    tempFile.deleteOnExit()
-    tempFile.writeText(text)
-    return tempFile
-}
-
 fun generateRandomText(length: Int): String {
     return (1..length)
         .map { Random.nextInt(0, alphabet.size) }

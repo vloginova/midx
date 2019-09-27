@@ -4,8 +4,10 @@ import com.vloginova.midx.api.SearchResult
 import com.vloginova.midx.assertCollectionEquals
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
@@ -122,9 +124,23 @@ internal class TrigramIndexTest {
 @ExperimentalCoroutinesApi
 class SmallFilesTrigramIndexTest {
 
+    private lateinit var rootDirectory: File
+    private lateinit var tempFile: File
+
+    @BeforeEach
+    fun prepareInputData() {
+        rootDirectory = createTempDir()
+        tempFile = createTempFile(directory = rootDirectory)
+    }
+
+    @AfterEach
+    fun deleteTestFile() {
+        rootDirectory.deleteRecursively()
+    }
+
     @Test
     fun `Search on empty file test`() {
-        val tempFile = createTempFileInDirectoryWithContent("")
+        tempFile.writeText("")
         val index = runBlocking { buildIndexAsync(tempFile).await() }
         val matches = collectMatches(index, "abcd", "/")
         assertTrue(matches.isEmpty(), "Search result on empty file is not empty")
@@ -132,7 +148,7 @@ class SmallFilesTrigramIndexTest {
 
     @Test
     fun `Search on short file test`() {
-        val tempFile = createTempFileInDirectoryWithContent("ab")
+        tempFile.writeText("ab")
         val index = runBlocking { buildIndexAsync(tempFile).await() }
         val matches = collectMatches(index, "a", "/")
 
@@ -141,15 +157,6 @@ class SmallFilesTrigramIndexTest {
         val searchResult = matches.first()
         val expectedSearchResult = SearchResult(searchResult.file, "ab", 1, 0, 1)
         assertEquals(expectedSearchResult, searchResult, "Unexpected search result")
-    }
-
-    private fun createTempFileInDirectoryWithContent(content: String): File {
-        val tempDirectory = createTempDir()
-        tempDirectory.deleteOnExit()
-        val tempFile = createTempFile(directory = tempDirectory)
-        tempFile.writeText(content)
-        tempFile.deleteOnExit()
-        return tempFile
     }
 
 }

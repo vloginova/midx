@@ -1,7 +1,10 @@
 package com.vloginova.midx.util
 
+import com.vloginova.midx.api.IOExceptionHandlingStrategy
+import com.vloginova.midx.api.IOExceptionHandlingStrategy.Strategy.*
 import com.vloginova.midx.api.SearchResult
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.util.*
 
@@ -49,7 +52,28 @@ internal fun File.hasTextContent(): Boolean {
     return contentType.startsWith("text/") || contentType in otherTextMimeTypes
 }
 
-private fun File.fullTextSearchSingleLine(text: String): Collection<SearchResult> {
+/**
+ * Tries to execute [block]. In case [IOException] occurs, follows the provided [handlingStrategy]
+ *
+ * @throws IOException If an I/O error occurs, and it wasn't ignored according to [handlingStrategy]
+ */
+internal fun <T> File.tryProcess(
+    handlingStrategy: IOExceptionHandlingStrategy,
+    block: () -> T?
+): T? {
+    return try {
+        return block()
+    } catch (e: IOException) {
+        handlingStrategy.callback(this, e)
+        when (handlingStrategy.strategy) {
+            RETRY_THEN_IGNORE, RETRY_THEN_ABORT -> tryProcess(handlingStrategy.degrade(), block)
+            ABORT -> throw e
+            IGNORE -> null
+        }
+    }
+}
+
+private fun File.fullTextSearchSingleLine(text: String) : Collection<SearchResult>{
     val searchResults = mutableListOf<SearchResult>()
     var lineNumber = 1
     forEachLine(Charsets.UTF_8) { line ->
