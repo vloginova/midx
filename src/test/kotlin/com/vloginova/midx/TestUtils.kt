@@ -2,6 +2,7 @@ package com.vloginova.midx
 
 import com.vloginova.midx.util.collections.IntSet
 import com.vloginova.midx.util.collections.intHashCode
+import org.junit.jupiter.api.Assertions.assertEquals
 import java.io.File
 import kotlin.random.Random
 
@@ -47,4 +48,9 @@ fun generateRandomText(length: Int): String {
         .map { Random.nextInt(0, alphabet.size) }
         .map(alphabet::get)
         .joinToString("")
+}
+
+fun <T> assertCollectionEquals(expected: Collection<T>, actual: Collection<T>) {
+    assertEquals(expected.size, actual.size, "Size of actual collection differs from expected one")
+    assertEquals(expected.size, actual.intersect(expected).size, "Collections elements don't match")
 }

@@ -1,6 +1,6 @@
 package com.vloginova.midx
 
-import com.vloginova.midx.api.Index
+import com.vloginova.midx.impl.TrigramIndex
 import com.vloginova.midx.impl.buildIndexAsync
 import kotlinx.coroutines.*
 import java.io.File
@@ -38,7 +38,7 @@ fun main() {
             continue
         }
 
-        val index: Index = runBlocking { deferredIndex.await() }
+        val index: TrigramIndex = runBlocking { deferredIndex.await() }
         searchInIndex(index, line)
         println(inviteToSearch)
     }
@@ -58,14 +58,14 @@ private fun getInputDirectory(): File {
     }
 }
 
-private fun awaitInBackground(deferredIndex: Deferred<Index>, startTime: Long): Job =
+private fun awaitInBackground(deferredIndex: Deferred<TrigramIndex>, startTime: Long): Job =
     GlobalScope.launch {
         deferredIndex.await()
         val endTime = System.currentTimeMillis()
         println("The index was built in ${endTime - startTime} ms.")
     }
 
-private fun cancelBuild(deferredIndex: Deferred<Index>) {
+private fun cancelBuild(deferredIndex: Deferred<TrigramIndex>) {
     val timeMillis = measureTimeMillis {
         runBlocking {
             deferredIndex.cancelAndJoin()
@@ -74,19 +74,21 @@ private fun cancelBuild(deferredIndex: Deferred<Index>) {
     if (deferredIndex.isCancelled) println("The build was cancelled in $timeMillis ms")
 }
 
-private fun searchInIndex(index: Index, text: String) {
+private fun searchInIndex(index: TrigramIndex, text: String) {
     val timeMillis = measureTimeMillis {
-        index.search(text) { (file, matchingText, startIdx, endIdx) ->
-            prettyPrint(file.path, FontStyle.BOLD)
-            prettyPrint(": ", FontStyle.BOLD)
+        runBlocking {
+            index.searchAsync(text = text) { (file, matchingText, lineNumber, startIdx, endIdx) ->
+                prettyPrint(file.path, FontStyle.BOLD)
+                prettyPrint(" ($lineNumber line): ", FontStyle.BOLD)
 
-            print(matchingText.take(startIdx))
-            prettyPrint(
-                matchingText.substring(startIdx, endIdx),
-                FontStyle.BOLD,
-                FontStyle.RED
-            )
-            println(matchingText.drop(endIdx))
+                print(matchingText.take(startIdx))
+                prettyPrint(
+                    matchingText.substring(startIdx, endIdx),
+                    FontStyle.BOLD,
+                    FontStyle.RED
+                )
+                println(matchingText.drop(endIdx))
+            }.await()
         }
     }
     println("The search was completed in $timeMillis ms.")

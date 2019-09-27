@@ -34,13 +34,13 @@ internal fun File.walkTextFiles(): Sequence<File> =
 /**
  * Performs fulltext search, treating all line separators in [text] and the file itself uniformly.
  */
-internal fun File.fullTextSearch(text: String, processMatch: (SearchResult) -> Unit) {
-    if (text.isEmpty()) return
+internal fun File.fullTextSearch(text: String): Collection<SearchResult> {
+    if (text.isEmpty()) return emptyList()
 
-    if (text.contains(lineSeparatorRegex)) {
-        fullTextSearchMultiLine(text, processMatch)
+    return if (text.contains(lineSeparatorRegex)) {
+        fullTextSearchMultiLine(text)
     } else {
-        fullTextSearchSingleLine(text, processMatch)
+        fullTextSearchSingleLine(text)
     }
 }
 
@@ -49,21 +49,28 @@ internal fun File.hasTextContent(): Boolean {
     return contentType.startsWith("text/") || contentType in otherTextMimeTypes
 }
 
-private fun File.fullTextSearchSingleLine(text: String, processMatch: (SearchResult) -> Unit) {
+private fun File.fullTextSearchSingleLine(text: String): Collection<SearchResult> {
+    val searchResults = mutableListOf<SearchResult>()
+    var lineNumber = 1
     forEachLine(Charsets.UTF_8) { line ->
         var textPosition = line.indexOf(text)
         while (textPosition != -1) {
-            processMatch(SearchResult(this, line, textPosition, textPosition + text.length))
+            searchResults.add(SearchResult(this, line, lineNumber, textPosition, textPosition + text.length))
             textPosition = line.indexOf(text, textPosition + 1)
         }
+        lineNumber++
     }
+    return searchResults
 }
 
-private fun File.fullTextSearchMultiLine(text: String, processMatch: (SearchResult) -> Unit) {
+private fun File.fullTextSearchMultiLine(text: String): Collection<SearchResult> {
     val splitText = text.split(lineSeparatorRegex)
     val splitTextLength = splitText.joinToString("\n").length
 
+    val searchResults = mutableListOf<SearchResult>()
     val accumulatedLines = LinkedList<String>()
+
+    var lineNumber = 1
     forEachLine(Charsets.UTF_8) { line ->
         accumulatedLines.add(line)
 
@@ -71,12 +78,15 @@ private fun File.fullTextSearchMultiLine(text: String, processMatch: (SearchResu
             val matchingText = accumulatedLines.joinToString("\n")
             val startIndex = matchingText.indexOf(splitText.first())
             val endIndex = startIndex + splitTextLength
-            processMatch(SearchResult(this, matchingText, startIndex, endIndex))
+            val matchLineNumber = lineNumber - splitText.size + 1
+            searchResults.add(SearchResult(this, matchingText, matchLineNumber, startIndex, endIndex))
             accumulatedLines.removeFirst()
         }
 
         dropWhileNoPotentialMatch(accumulatedLines, splitText)
+        lineNumber++
     }
+    return searchResults
 }
 
 private fun dropWhileNoPotentialMatch(accumulatedLines: LinkedList<String>, splitText: List<String>) {

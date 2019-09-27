@@ -1,6 +1,7 @@
 package com.vloginova.midx.impl
 
 import com.vloginova.midx.alphabet
+import com.vloginova.midx.assertCollectionEquals
 import com.vloginova.midx.createTempFileWithText
 import com.vloginova.midx.util.replaceFileSeparatorsWithLf
 import org.junit.jupiter.api.Assertions.*
@@ -136,7 +137,7 @@ internal class TrigramSetTest {
     fun `Check TrigramSet from(String) for multiline inputs`(input: String) {
         val trigramsForInputWithLfOnly = TrigramSet.from(input.replaceFileSeparatorsWithLf()).toSet()
         val trigramsForInput = TrigramSet.from(input).toSet()
-        assertEquals(trigramsForInputWithLfOnly, trigramsForInput)
+        assertCollectionEquals(trigramsForInputWithLfOnly, trigramsForInput)
     }
 
     @ParameterizedTest
@@ -145,7 +146,7 @@ internal class TrigramSetTest {
         val tempFile = createTempFileWithText(input)
         val trigramsForInputWithLfOnly = TrigramSet.from(tempFile, bufferSize = 6).toSet()
         val trigramsForInput = TrigramSet.from(input.replaceFileSeparatorsWithLf()).toSet()
-        assertEquals(trigramsForInput, trigramsForInputWithLfOnly)
+        assertCollectionEquals(trigramsForInput, trigramsForInputWithLfOnly)
     }
 
     @Test
@@ -157,7 +158,7 @@ internal class TrigramSetTest {
         val tempFile = createTempFileWithText(text)
         val trigramsFromFile = TrigramSet.from(tempFile).toSet()
         val trigramsFromString = TrigramSet.from(text).toSet()
-        assertEquals(trigramsFromString, trigramsFromFile)
+        assertCollectionEquals(trigramsFromString, trigramsFromFile)
     }
 
     private fun TrigramSet.toSet(): Set<Int> {
@@ -166,10 +167,5 @@ internal class TrigramSetTest {
             set.add(value)
         }
         return set
-    }
-
-    private fun assertEquals(expectedSet: Set<Int>, actualSet: Set<Int>) {
-        assertEquals(expectedSet.size, actualSet.size, "Unexpected set size")
-        assertEquals(expectedSet.size, actualSet.intersect(actualSet).size, "Unexpected set content")
     }
 }

@@ -1,8 +1,7 @@
 package com.vloginova.midx.util
 
 import com.vloginova.midx.api.SearchResult
-import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.function.Executable
+import com.vloginova.midx.assertCollectionEquals
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 import java.io.File
@@ -19,102 +18,105 @@ internal class FileUtilsKtTest {
 
         @Suppress("unused")
         @JvmStatic
-        fun testDataProvider(): Stream<Pair<String, Array<SearchResult>>> {
+        fun testDataProvider(): Stream<Pair<String, Collection<SearchResult>>> {
             return Stream.of(
                 Pair(
-                    "Autumn is", arrayOf(
-                        SearchResult(file, "Autumn is over the long leaves that love us,", 0, 9)
+                    "Autumn is", listOf(
+                        SearchResult(file, "Autumn is over the long leaves that love us,", 1, 0, 9)
                     )
                 ),
                 Pair(
-                    "love us,", arrayOf(
+                    "love us,", listOf(
                         SearchResult(
                             file,
                             "Autumn is over the long leaves that love us,",
+                            1,
                             36,
                             44
                         )
                     )
                 ),
                 Pair(
-                    "r the long l", arrayOf(
+                    "r the long l", listOf(
                         SearchResult(
                             file,
                             "Autumn is over the long leaves that love us,",
+                            1,
                             13,
                             25
                         )
                     )
                 ),
                 Pair(
-                    "us", arrayOf(
+                    "us", listOf(
                         SearchResult(
                             file,
                             "Autumn is over the long leaves that love us,",
+                            1,
                             41,
                             43
                         ),
-                        SearchResult(file, "Yellow the leaves of the rowan above us,", 37, 39)
+                        SearchResult(file, "Yellow the leaves of the rowan above us,", 3, 37, 39)
                     )
                 ),
                 Pair(
-                    "sheaves;\nYellow", arrayOf(
+                    "sheaves;\nYellow", listOf(
                         SearchResult(
                             file, "And over the mice in the barley sheaves;\n" +
-                                    "Yellow the leaves of the rowan above us,", 32, 47
+                                    "Yellow the leaves of the rowan above us,", 2, 32, 47
                         )
                     )
                 ),
                 Pair(
-                    "us,\nAnd", arrayOf(
+                    "us,\nAnd", listOf(
                         SearchResult(
                             file, "Autumn is over the long leaves that love us,\n" +
-                                    "And over the mice in the barley sheaves;", 41, 48
+                                    "And over the mice in the barley sheaves;", 1, 41, 48
                         ),
                         SearchResult(
                             file, "Yellow the leaves of the rowan above us,\n" +
-                                    "And yellow the wet wild-strawberry leaves.", 37, 44
+                                    "And yellow the wet wild-strawberry leaves.", 3, 37, 44
                         )
                     )
                 ),
                 Pair(
-                    "love us,\n", arrayOf(
+                    "love us,\n", listOf(
                         SearchResult(
                             file, "Autumn is over the long leaves that love us,\n" +
-                                    "And over the mice in the barley sheaves;", 36, 45
+                                    "And over the mice in the barley sheaves;", 1, 36, 45
                         )
                     )
                 ),
                 Pair(
-                    "love us,\r", arrayOf(
+                    "love us,\r", listOf(
                         SearchResult(
                             file, "Autumn is over the long leaves that love us,\n" +
-                                    "And over the mice in the barley sheaves;", 36, 45
+                                    "And over the mice in the barley sheaves;", 1, 36, 45
                         )
                     )
                 ),
                 Pair(
-                    "love us,\r\n", arrayOf(
+                    "love us,\r\n", listOf(
                         SearchResult(
                             file, "Autumn is over the long leaves that love us,\n" +
-                                    "And over the mice in the barley sheaves;", 36, 45
+                                    "And over the mice in the barley sheaves;", 1, 36, 45
                         )
                     )
                 ),
                 Pair(
-                    "love us,\n\n", emptyArray()
+                    "love us,\n\n", emptyList()
                 ),
                 Pair(
-                    "love us,\r\r", emptyArray()
+                    "love us,\r\r", emptyList()
                 ),
                 Pair(
-                    "no match", emptyArray()
+                    "no match", emptyList()
                 ),
                 Pair(
-                    "no\nmatch", emptyArray()
+                    "no\nmatch", emptyList()
                 ),
                 Pair(
-                    "", emptyArray()
+                    "", emptyList()
                 )
             )
         }
@@ -122,28 +124,9 @@ internal class FileUtilsKtTest {
 
     @ParameterizedTest
     @MethodSource("testDataProvider")
-    fun testSearchResult(testData: Pair<String, Array<SearchResult>>) {
-        val matches = collectMatches(testData.first)
-        assertAll("Expected match is missed in the actual result", testData.second.map { match ->
-            Executable {
-                assertTrue(
-                    matches.contains(
-                        match
-                    ),
-                    "Match is absent: $match"
-                )
-            }
-        })
-        assertEquals(
-            testData.second.size,
-            matches.size,
-            "Expected number of matches differs from the actual result"
-        )
+    fun testSearchResult(testData: Pair<String, Collection<SearchResult>>) {
+        val matches = file.fullTextSearch(testData.first)
+        assertCollectionEquals(testData.second, matches)
     }
 
-    private fun collectMatches(searchText: String): Collection<SearchResult> {
-        val matches = ArrayList<SearchResult>()
-        file.fullTextSearch(searchText) { matches.add(it) }
-        return matches
-    }
 }

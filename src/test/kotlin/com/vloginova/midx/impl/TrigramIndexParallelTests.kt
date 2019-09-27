@@ -1,5 +1,7 @@
 package com.vloginova.midx.impl
 
+import com.vloginova.midx.api.SearchResult
+import com.vloginova.midx.assertCollectionEquals
 import com.vloginova.midx.generateRandomText
 import kotlinx.coroutines.*
 import org.junit.jupiter.api.Assertions
@@ -16,7 +18,6 @@ import kotlin.reflect.full.memberProperties
 import kotlin.reflect.jvm.isAccessible
 import kotlin.system.measureTimeMillis
 
-@ExperimentalCoroutinesApi
 @Suppress("UNCHECKED_CAST")
 class TrigramIndexParallelBuildTest {
 
@@ -29,6 +30,27 @@ class TrigramIndexParallelBuildTest {
             val indexBuiltInParallel = buildIndexAsync(rootDirectory).await()
 
             assertEquals(indexBuiltSequentially, indexBuiltInParallel)
+        }
+    }
+
+    @UseExperimental(ObsoleteCoroutinesApi::class)
+    @Test
+    fun `Ensure sequential index search produce the same result as parallel`() {
+        runBlocking {
+            val index = buildIndexAsync(rootDirectory).await()
+            val searchText = generateRandomText(9)
+
+            val sequentialSearchResult = ArrayList<SearchResult>()
+            index.searchAsync(searchText, newSingleThreadContext("Test")) {
+                sequentialSearchResult.add(it)
+            }.await()
+
+            val parallelSearchResult = ArrayList<SearchResult>()
+            index.searchAsync(searchText) {
+                parallelSearchResult.add(it)
+            }.await()
+
+            assertCollectionEquals(sequentialSearchResult, parallelSearchResult)
         }
     }
 
