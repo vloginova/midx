@@ -25,17 +25,13 @@ private val lineSeparatorRegex = Regex("\\r\\n|\\n|\\r")
 
 /**
  * Consist of the files in the provided directory and all its subdirectories, which have text content.
- * [Files.probeContentType] defines a content type. A file has text content when it has a text/\* MIME type,
- * or the type is in [otherTextMimeTypes].
  */
-internal fun File.walkTextFiles(): Sequence<File> =
-    walk()
-        .filter { file ->
-            file.isFile && file.hasTextContent()
-        }
+internal fun File.walkFiles(): Sequence<File> = walk().filter { it.isFile }
 
 /**
  * Performs fulltext search, treating all line separators in [text] and the file itself uniformly.
+ *
+ * @throws IOException If an I/O error occurs
  */
 internal fun File.fullTextSearch(text: String): Collection<SearchResult> {
     if (text.isEmpty()) return emptyList()
@@ -47,6 +43,12 @@ internal fun File.fullTextSearch(text: String): Collection<SearchResult> {
     }
 }
 
+/**
+ * Defines if the file has text content via [Files.probeContentType]. A file has text content when it has a text/\* MIME
+ * type, or the type is in [otherTextMimeTypes].
+ *
+ * @throws IOException If an I/O error occurs
+ */
 internal fun File.hasTextContent(): Boolean {
     val contentType = Files.probeContentType(toPath()) ?: ""
     return contentType.startsWith("text/") || contentType in otherTextMimeTypes

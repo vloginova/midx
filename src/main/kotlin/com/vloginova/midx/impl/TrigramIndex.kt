@@ -4,11 +4,12 @@ import com.vloginova.midx.api.DEFAULT_IO_EXCEPTION_HANDLING_STRATEGY
 import com.vloginova.midx.api.IOExceptionHandlingStrategy
 import com.vloginova.midx.api.Index
 import com.vloginova.midx.api.SearchResult
+import com.vloginova.midx.util.*
 import com.vloginova.midx.util.collections.IntKeyMap
 import com.vloginova.midx.util.fullTextSearch
 import com.vloginova.midx.util.parallelMapNotNull
 import com.vloginova.midx.util.tryProcess
-import com.vloginova.midx.util.walkTextFiles
+import com.vloginova.midx.util.walkFiles
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.collect
@@ -49,9 +50,14 @@ class TrigramIndex internal constructor(
         if (text.isEmpty()) return
 
         val fileSequence =
-            if (text.length < 3) rootDirectory.walkTextFiles() else matchingFileCandidates(text, indexStorage)
+            if (text.length < 3) rootDirectory.walkFiles() else matchingFileCandidates(text, indexStorage)
 
         fileSequence.asFlow()
+            .parallelFilter(trigramIndexParallelism) { file ->
+                file.tryProcess(handlingStrategy) {
+                    file.hasTextContent()
+                } ?: false
+            }
             .parallelMapNotNull(trigramIndexParallelism) { file ->
                 file.tryProcess(handlingStrategy) {
                     file.fullTextSearch(text)
@@ -136,7 +142,12 @@ suspend fun buildIndex(
     // only uses CPU resources, and it is executed in parallel with map step. Experiments didn't show any
     // significant performance improvement when running reduce step in parallel, so it was decided not to complicate
     // the solution.
-    rootDirectory.walkTextFiles().asFlow()
+    rootDirectory.walkFiles().asFlow()
+        .parallelFilter(trigramIndexParallelism) { file ->
+            file.tryProcess(handlingStrategy) {
+                file.hasTextContent()
+            } ?: false
+        }
         .parallelMapNotNull(trigramIndexParallelism) { file ->
             tryCreateFileIndex(file, handlingStrategy, coroutineContext::ensureActive)
         }
