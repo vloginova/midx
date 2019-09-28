@@ -243,3 +243,34 @@ class FileUtilsTryProcessTest {
     }
 
 }
+
+class FileUtilsMicsTest {
+
+    @Test
+    fun `Check walkFiles`() {
+        val testDir = "/simpleTestFiles"
+        val file = File(FileUtilsMicsTest::class.java.getResource(testDir).file)
+        val files = file.walkFiles().toList()
+        assertEquals(5, files.count(), "Unexpected number of files in $testDir")
+        assertTrue(files.all { it.isFile }, "Non-file is gathered in walkFiles()")
+    }
+
+    @Test
+    fun `Check hasTextContent() returns true for a text file`() {
+        val file = File(FileUtilsMicsTest::class.java.getResource("/simpleTestFiles/text2.txt").file)
+        assertTrue(file.hasTextContent(), "Text file was recognized as binary")
+    }
+
+    @Test
+    fun `Check hasTextContent() returns false for a file with non text MIME type but text content`() {
+        val file = File(FileUtilsMicsTest::class.java.getResource("/simpleTestFiles/other/emptyHTML.html").file)
+        assertTrue(file.hasTextContent(), "Text file was recognized as binary")
+    }
+
+    @Test
+    fun `Check hasTextContent() returns false for a binary file`() {
+        val file = File(FileUtilsMicsTest::class.java.getResource("/simpleTestFiles/textCompressed.zip").file)
+        assertFalse(file.hasTextContent(), "Binary file was recognized as text")
+    }
+
+}
