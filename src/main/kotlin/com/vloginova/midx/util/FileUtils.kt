@@ -5,6 +5,7 @@ import com.vloginova.midx.api.IOExceptionHandlingStrategy.Strategy.*
 import com.vloginova.midx.api.SearchResult
 import java.io.File
 import java.io.IOException
+import java.nio.charset.Charset
 import java.nio.file.Files
 import java.util.*
 
@@ -75,10 +76,10 @@ internal fun <T> File.tryProcess(
     }
 }
 
-private fun File.fullTextSearchSingleLine(text: String) : Collection<SearchResult>{
+private fun File.fullTextSearchSingleLine(text: String, charset: Charset = Charsets.UTF_8) : Collection<SearchResult>{
     val searchResults = mutableListOf<SearchResult>()
     var lineNumber = 1
-    forEachLine(Charsets.UTF_8) { line ->
+    forEachLine(charset) { line ->
         var textPosition = line.indexOf(text)
         while (textPosition != -1) {
             searchResults.add(SearchResult(this, line, lineNumber, textPosition, textPosition + text.length))
@@ -89,7 +90,7 @@ private fun File.fullTextSearchSingleLine(text: String) : Collection<SearchResul
     return searchResults
 }
 
-private fun File.fullTextSearchMultiLine(text: String): Collection<SearchResult> {
+private fun File.fullTextSearchMultiLine(text: String, charset: Charset = Charsets.UTF_8): Collection<SearchResult> {
     val splitText = text.split(lineSeparatorRegex)
     val splitTextLength = splitText.joinToString("\n").length
 
@@ -97,7 +98,7 @@ private fun File.fullTextSearchMultiLine(text: String): Collection<SearchResult>
     val accumulatedLines = LinkedList<String>()
 
     var lineNumber = 1
-    forEachLine(Charsets.UTF_8) { line ->
+    forEachLine(charset) { line ->
         accumulatedLines.add(line)
 
         if (accumulatedLines.size == splitText.size && line.startsWith(splitText.last())) {

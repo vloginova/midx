@@ -218,7 +218,7 @@ private fun generateInputData(
             val file =
                 createTempFile(prefix = "File$it", directory = directories[Random.nextInt(0, directories.size)])
             val text = generateRandomText(Random.nextInt(100, 2 * 1024 * 1024))
-            file.writeText(text, Charsets.UTF_8)
+            file.writeText(text)
         }
     } catch (e: Throwable) {
         cleanUpInputData(rootDirectory)

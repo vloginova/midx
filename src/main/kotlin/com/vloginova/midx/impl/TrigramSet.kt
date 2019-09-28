@@ -2,6 +2,7 @@ package com.vloginova.midx.impl
 
 import com.vloginova.midx.util.collections.IntSet
 import java.io.File
+import java.nio.charset.Charset
 import kotlin.math.sqrt
 
 /**
@@ -56,7 +57,7 @@ internal class TrigramSet(initialCapacity: Int) {
                 calculateInitialCapacity(file.length())
             )
             val buffer = CharArray(bufferSize)
-            file.bufferedReader(Charsets.UTF_8, bufferSize).use {
+            file.bufferedReader(charset, bufferSize).use {
                 var accumulatedCharsNumber = 0
                 while (true) {
                     checkCancelled()
