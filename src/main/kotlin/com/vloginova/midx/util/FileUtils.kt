@@ -34,13 +34,13 @@ internal fun File.walkFiles(): Sequence<File> = walk().filter { it.isFile }
  *
  * @throws IOException If an I/O error occurs
  */
-internal fun File.fullTextSearch(text: String): Collection<SearchResult> {
+internal fun File.fullTextSearch(text: String, ignoreCase: Boolean = false): Collection<SearchResult> {
     if (text.isEmpty()) return emptyList()
 
     return if (text.contains(lineSeparatorRegex)) {
-        fullTextSearchMultiLine(text)
+        fullTextSearchMultiLine(text, ignoreCase)
     } else {
-        fullTextSearchSingleLine(text)
+        fullTextSearchSingleLine(text, ignoreCase)
     }
 }
 
@@ -76,21 +76,29 @@ internal fun <T> File.tryProcess(
     }
 }
 
-private fun File.fullTextSearchSingleLine(text: String, charset: Charset = Charsets.UTF_8) : Collection<SearchResult>{
+private fun File.fullTextSearchSingleLine(
+    text: String,
+    ignoreCase: Boolean,
+    charset: Charset = Charsets.UTF_8
+): Collection<SearchResult> {
     val searchResults = mutableListOf<SearchResult>()
     var lineNumber = 1
     forEachLine(charset) { line ->
-        var textPosition = line.indexOf(text)
+        var textPosition = line.indexOf(text, ignoreCase = ignoreCase)
         while (textPosition != -1) {
             searchResults.add(SearchResult(this, line, lineNumber, textPosition, textPosition + text.length))
-            textPosition = line.indexOf(text, textPosition + 1)
+            textPosition = line.indexOf(text, textPosition + 1, ignoreCase)
         }
         lineNumber++
     }
     return searchResults
 }
 
-private fun File.fullTextSearchMultiLine(text: String, charset: Charset = Charsets.UTF_8): Collection<SearchResult> {
+private fun File.fullTextSearchMultiLine(
+    text: String,
+    ignoreCase: Boolean,
+    charset: Charset = Charsets.UTF_8
+): Collection<SearchResult> {
     val splitText = text.split(lineSeparatorRegex)
     val splitTextLength = splitText.joinToString("\n").length
 
@@ -101,37 +109,41 @@ private fun File.fullTextSearchMultiLine(text: String, charset: Charset = Charse
     forEachLine(charset) { line ->
         accumulatedLines.add(line)
 
-        if (accumulatedLines.size == splitText.size && line.startsWith(splitText.last())) {
+        if (accumulatedLines.size == splitText.size && line.startsWith(splitText.last(), ignoreCase)) {
             val matchingText = accumulatedLines.joinToString("\n")
-            val startIndex = matchingText.indexOf(splitText.first())
+            val startIndex = matchingText.indexOf(splitText.first(), ignoreCase = ignoreCase)
             val endIndex = startIndex + splitTextLength
             val matchLineNumber = lineNumber - splitText.size + 1
             searchResults.add(SearchResult(this, matchingText, matchLineNumber, startIndex, endIndex))
             accumulatedLines.removeFirst()
         }
 
-        dropWhileNoPotentialMatch(accumulatedLines, splitText)
+        dropWhileNoPotentialMatch(accumulatedLines, splitText, ignoreCase)
         lineNumber++
     }
     return searchResults
 }
 
-private fun dropWhileNoPotentialMatch(accumulatedLines: LinkedList<String>, splitText: List<String>) {
+private fun dropWhileNoPotentialMatch(
+    accumulatedLines: LinkedList<String>,
+    splitText: List<String>,
+    ignoreCase: Boolean
+) {
     while (!accumulatedLines.isEmpty()
-        && !(accumulatedLines.first.endsWith(splitText.first())
-                && splitText.startsWith(accumulatedLines.subList(0, accumulatedLines.lastIndex)))
+        && !(accumulatedLines.first.endsWith(splitText.first(), ignoreCase)
+                && splitText.startsWith(accumulatedLines.subList(0, accumulatedLines.lastIndex), ignoreCase))
     ) {
         accumulatedLines.removeFirst()
     }
 }
 
-private fun List<String>.startsWith(other: List<String>): Boolean {
+private fun List<String>.startsWith(other: List<String>, ignoreCase: Boolean): Boolean {
     if (this.size < other.size) return false
 
     if (this.isEmpty()) return true
 
     for (i in other.indices) {
-        if (this[i] != other[i]) return false
+        if (!this[i].equals(other[i], ignoreCase)) return false
     }
     return true
 }

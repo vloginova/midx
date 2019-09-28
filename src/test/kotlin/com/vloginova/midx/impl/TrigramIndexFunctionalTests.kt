@@ -23,10 +23,10 @@ internal class TrigramIndexTest {
 
         @Suppress("unused")
         @JvmStatic
-        fun testDataProvider(): Stream<Pair<String, Collection<SearchResult>>> {
+        fun testDataProvider(): Stream<Triple<String, Boolean, Collection<SearchResult>>> {
             return Stream.of(
-                Pair(
-                    "r of the", listOf(
+                Triple(
+                    "r of the", false, listOf(
                         SearchResult(
                             File("/simpleTestFiles/text1.txt"),
                             "The hour of the waning of love has beset us,",
@@ -36,8 +36,22 @@ internal class TrigramIndexTest {
                         )
                     )
                 ),
-                Pair(
-                    "ani", listOf(
+                Triple(
+                    "r OF the", true, listOf(
+                        SearchResult(
+                            File("/simpleTestFiles/text1.txt"),
+                            "The hour of the waning of love has beset us,",
+                            1,
+                            7,
+                            15
+                        )
+                    )
+                ),
+                Triple(
+                    "r OF the", false, emptyList()
+                ),
+                Triple(
+                    "ani", false, listOf(
                         SearchResult(
                             File("/simpleTestFiles/text1.txt"),
                             "The hour of the waning of love has beset us,",
@@ -47,8 +61,8 @@ internal class TrigramIndexTest {
                         )
                     )
                 ),
-                Pair(
-                    "The hour", listOf(
+                Triple(
+                    "The hour", false, listOf(
                         SearchResult(
                             File("/simpleTestFiles/text1.txt"),
                             "The hour of the waning of love has beset us,",
@@ -58,8 +72,8 @@ internal class TrigramIndexTest {
                         )
                     )
                 ),
-                Pair(
-                    "of", listOf(
+                Triple(
+                    "of", false, listOf(
                         SearchResult(
                             File("/simpleTestFiles/text1.txt"),
                             "The hour of the waning of love has beset us,",
@@ -90,9 +104,8 @@ internal class TrigramIndexTest {
                         )
                     )
                 ),
-                Pair(
-                    "круг,\nНо",
-                    listOf(
+                Triple(
+                    "круг,\nНо", false, listOf(
                         SearchResult(
                             File("/simpleTestFiles/russian/text1.txt"),
                             "Но если сон смыкает сладкий круг,\nНо если пью проклятое вино, –",
@@ -102,11 +115,25 @@ internal class TrigramIndexTest {
                         )
                     )
                 ),
-                Pair(
-                    "no match", emptyList()
+                Triple(
+                    "КРУГ,\nно", true, listOf(
+                        SearchResult(
+                            File("/simpleTestFiles/russian/text1.txt"),
+                            "Но если сон смыкает сладкий круг,\nНо если пью проклятое вино, –",
+                            4,
+                            28,
+                            36
+                        )
+                    )
                 ),
-                Pair(
-                    "", emptyList()
+                Triple(
+                    "КРУГ,\nно", false, emptyList()
+                ),
+                Triple(
+                    "no match", false, emptyList()
+                ),
+                Triple(
+                    "", false, emptyList()
                 )
             )
         }
@@ -114,9 +141,9 @@ internal class TrigramIndexTest {
 
     @ParameterizedTest
     @MethodSource("testDataProvider")
-    fun testSearchResult(testData: Pair<String, Collection<SearchResult>>) {
-        val expected = testData.second
-        val actual = collectMatches(index, testData.first, testFilesPath)
+    fun testSearchResult(testData: Triple<String, Boolean, Collection<SearchResult>>) {
+        val expected = testData.third
+        val actual = collectMatches(index, testData.first, testData.second, testFilesPath)
         assertCollectionEquals(expected, actual)
     }
 }
@@ -142,7 +169,7 @@ class SmallFilesTrigramIndexTest {
     fun `Search on empty file test`() {
         tempFile.writeText("")
         val index = runBlocking { buildIndexAsync(tempFile).await() }
-        val matches = collectMatches(index, "abcd", "/")
+        val matches = collectMatches(index, "abcd", false, "/")
         assertTrue(matches.isEmpty(), "Search result on empty file is not empty")
     }
 
@@ -150,7 +177,7 @@ class SmallFilesTrigramIndexTest {
     fun `Search on short file test`() {
         tempFile.writeText("ab")
         val index = runBlocking { buildIndexAsync(tempFile).await() }
-        val matches = collectMatches(index, "a", "/")
+        val matches = collectMatches(index, "a", false, "/")
 
         assertEquals(1, matches.size, "Unexpected number of matches")
 
@@ -161,10 +188,15 @@ class SmallFilesTrigramIndexTest {
 
 }
 
-private fun collectMatches(index: TrigramIndex, searchText: String, testFilesPath: String): Collection<SearchResult> {
+private fun collectMatches(
+    index: TrigramIndex,
+    searchText: String,
+    ignoreCase: Boolean,
+    testFilesPath: String
+): Collection<SearchResult> {
     val matches = ArrayList<SearchResult>()
     runBlocking {
-        index.searchAsync(text = searchText) { (file, line, lineNumber, startIdx, endIdx) ->
+        index.searchAsync(searchText, ignoreCase) { (file, line, lineNumber, startIdx, endIdx) ->
             val simplifiedFileName = file.path.replaceFirst(Regex(".*$testFilesPath"), testFilesPath)
             matches.add(SearchResult(File(simplifiedFileName), line, lineNumber, startIdx, endIdx))
         }.await()

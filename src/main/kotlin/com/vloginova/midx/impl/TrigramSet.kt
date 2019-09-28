@@ -130,6 +130,6 @@ internal class TrigramSet(initialCapacity: Int) {
 
     private fun CharArray.properCharAt(offset: Int): Char {
         val char = this[offset]
-        return if (char == '\r') '\n' else char
+        return if (char == '\r') '\n' else char.toLowerCase()
     }
 }

@@ -22,15 +22,23 @@ internal class FileUtilsSearchMethodsTest {
 
         @Suppress("unused")
         @JvmStatic
-        fun testDataProvider(): Stream<Pair<String, Collection<SearchResult>>> {
+        fun testDataProvider(): Stream<Triple<String, Boolean, Collection<SearchResult>>> {
             return Stream.of(
-                Pair(
-                    "Autumn is", listOf(
+                Triple(
+                    "Autumn is", false, listOf(
                         SearchResult(file, "Autumn is over the long leaves that love us,", 1, 0, 9)
                     )
                 ),
-                Pair(
-                    "love us,", listOf(
+                Triple(
+                    "autumn is", true, listOf(
+                        SearchResult(file, "Autumn is over the long leaves that love us,", 1, 0, 9)
+                    )
+                ),
+                Triple(
+                    "autumn is", false, emptyList()
+                ),
+                Triple(
+                    "love us,", false, listOf(
                         SearchResult(
                             file,
                             "Autumn is over the long leaves that love us,",
@@ -40,8 +48,8 @@ internal class FileUtilsSearchMethodsTest {
                         )
                     )
                 ),
-                Pair(
-                    "r the long l", listOf(
+                Triple(
+                    "r the long l", false, listOf(
                         SearchResult(
                             file,
                             "Autumn is over the long leaves that love us,",
@@ -51,8 +59,8 @@ internal class FileUtilsSearchMethodsTest {
                         )
                     )
                 ),
-                Pair(
-                    "us", listOf(
+                Triple(
+                    "us", false, listOf(
                         SearchResult(
                             file,
                             "Autumn is over the long leaves that love us,",
@@ -63,16 +71,16 @@ internal class FileUtilsSearchMethodsTest {
                         SearchResult(file, "Yellow the leaves of the rowan above us,", 3, 37, 39)
                     )
                 ),
-                Pair(
-                    "sheaves;\nYellow", listOf(
+                Triple(
+                    "sheaves;\nYellow", false, listOf(
                         SearchResult(
                             file, "And over the mice in the barley sheaves;\n" +
                                     "Yellow the leaves of the rowan above us,", 2, 32, 47
                         )
                     )
                 ),
-                Pair(
-                    "us,\nAnd", listOf(
+                Triple(
+                    "us,\nAnd", false, listOf(
                         SearchResult(
                             file, "Autumn is over the long leaves that love us,\n" +
                                     "And over the mice in the barley sheaves;", 1, 41, 48
@@ -83,44 +91,59 @@ internal class FileUtilsSearchMethodsTest {
                         )
                     )
                 ),
-                Pair(
-                    "love us,\n", listOf(
+                Triple(
+                    "us,\nand", true, listOf(
+                        SearchResult(
+                            file, "Autumn is over the long leaves that love us,\n" +
+                                    "And over the mice in the barley sheaves;", 1, 41, 48
+                        ),
+                        SearchResult(
+                            file, "Yellow the leaves of the rowan above us,\n" +
+                                    "And yellow the wet wild-strawberry leaves.", 3, 37, 44
+                        )
+                    )
+                ),
+                Triple(
+                    "US,\nand", false, emptyList()
+                ),
+                Triple(
+                    "love us,\n", false, listOf(
                         SearchResult(
                             file, "Autumn is over the long leaves that love us,\n" +
                                     "And over the mice in the barley sheaves;", 1, 36, 45
                         )
                     )
                 ),
-                Pair(
-                    "love us,\r", listOf(
+                Triple(
+                    "love us,\r", false, listOf(
                         SearchResult(
                             file, "Autumn is over the long leaves that love us,\n" +
                                     "And over the mice in the barley sheaves;", 1, 36, 45
                         )
                     )
                 ),
-                Pair(
-                    "love us,\r\n", listOf(
+                Triple(
+                    "love us,\r\n", false, listOf(
                         SearchResult(
                             file, "Autumn is over the long leaves that love us,\n" +
                                     "And over the mice in the barley sheaves;", 1, 36, 45
                         )
                     )
                 ),
-                Pair(
-                    "love us,\n\n", emptyList()
+                Triple(
+                    "love us,\n\n", false, emptyList()
                 ),
-                Pair(
-                    "love us,\r\r", emptyList()
+                Triple(
+                    "love us,\r\r", false, emptyList()
                 ),
-                Pair(
-                    "no match", emptyList()
+                Triple(
+                    "no match", false, emptyList()
                 ),
-                Pair(
-                    "no\nmatch", emptyList()
+                Triple(
+                    "no\nmatch", false, emptyList()
                 ),
-                Pair(
-                    "", emptyList()
+                Triple(
+                    "", false, emptyList()
                 )
             )
         }
@@ -128,9 +151,9 @@ internal class FileUtilsSearchMethodsTest {
 
     @ParameterizedTest
     @MethodSource("testDataProvider")
-    fun testSearchResult(testData: Pair<String, Collection<SearchResult>>) {
-        val matches = file.fullTextSearch(testData.first)
-        assertCollectionEquals(testData.second, matches)
+    fun testSearchResult(testData: Triple<String, Boolean, Collection<SearchResult>>) {
+        val matches = file.fullTextSearch(testData.first, testData.second)
+        assertCollectionEquals(testData.third, matches)
     }
 
 }

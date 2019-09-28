@@ -16,6 +16,7 @@ interface Index {
      */
     suspend fun search(
         text: String,
+        ignoreCase: Boolean = false,
         handlingStrategy: IOExceptionHandlingStrategy = DEFAULT_IO_EXCEPTION_HANDLING_STRATEGY,
         processMatch: (SearchResult) -> Unit
     )

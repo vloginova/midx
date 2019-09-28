@@ -44,6 +44,7 @@ class TrigramIndex internal constructor(
      */
     override suspend fun search(
         text: String,
+        ignoreCase: Boolean,
         handlingStrategy: IOExceptionHandlingStrategy,
         processMatch: (SearchResult) -> Unit
     ) {
@@ -60,7 +61,7 @@ class TrigramIndex internal constructor(
             }
             .parallelMapNotNull(trigramIndexParallelism) { file ->
                 file.tryProcess(handlingStrategy) {
-                    file.fullTextSearch(text)
+                    file.fullTextSearch(text, ignoreCase)
                 }
             }.collect {
                 it.forEach(processMatch)
@@ -69,12 +70,13 @@ class TrigramIndex internal constructor(
 
     fun searchAsync(
         text: String,
+        ignoreCase: Boolean = false,
         handlingStrategy: IOExceptionHandlingStrategy = DEFAULT_IO_EXCEPTION_HANDLING_STRATEGY,
         context: CoroutineContext = EmptyCoroutineContext,
         processMatch: (SearchResult) -> Unit
     ): Deferred<Unit> {
         return runWithDefaultDispatcherAsync(context) {
-            search(text, handlingStrategy, processMatch)
+            search(text, ignoreCase, handlingStrategy, processMatch)
         }
     }
 

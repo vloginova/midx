@@ -17,12 +17,12 @@ import kotlin.random.Random
 
 private const val palindrome = "I did did I"
 private val palindromeTrigrams = mapOf(
-    "I d" to 4792420,
+    "I d" to 6889572,
     " di" to 2122857,
     "did" to 6580580,
     "id " to 6906912,
     "d d" to 6561892,
-    "d I" to 6561865
+    "d I" to 6561897
 )
 
 open class TrigramSetTest {
@@ -93,7 +93,7 @@ class TrigramSetFromStringTest : TrigramSetTest() {
 
     @Test
     fun `Check for expected collisions`() {
-        assertEquals(TrigramSet.from("aMN").first(), TrigramSet.from("aIю").first())
+        assertEquals(TrigramSet.from("IaB").first(), TrigramSet.from("iAb").first())
     }
 
     @ParameterizedTest
