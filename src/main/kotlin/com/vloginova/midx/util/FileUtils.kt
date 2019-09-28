@@ -22,6 +22,14 @@ private val otherTextMimeTypes = setOf(
     "application/xslt+xml"
 )
 
+/**
+ * [textFileExtensions] and [binaryFileExtensions] are also gathered from
+ * <a href="https://github.com/JetBrains/intellij-community">IntelliJ IDEA Community Edition</a>.
+ * This shortcut helps to not use heavy [Files.probeContentType]
+ */
+private val textFileExtensions = setOf("java", "xml", "py", "kt", "html", "txt", "svg", "groovy", "json", "gradle")
+private val binaryFileExtensions = setOf("class", "png")
+
 private val lineSeparatorRegex = Regex("\\r\\n|\\n|\\r")
 
 /**
@@ -46,11 +54,15 @@ internal fun File.fullTextSearch(text: String, ignoreCase: Boolean = false): Col
 
 /**
  * Defines if the file has text content via [Files.probeContentType]. A file has text content when it has a text/\* MIME
- * type, or the type is in [otherTextMimeTypes].
+ * type, or the type is in [otherTextMimeTypes]. Heuristic: for files with extensions [textFileExtensions] and
+ * [binaryFileExtensions] gives an answer right away.
  *
  * @throws IOException If an I/O error occurs
  */
 internal fun File.hasTextContent(): Boolean {
+    if (extension in binaryFileExtensions) return false
+    if (extension in textFileExtensions) return true
+
     val contentType = Files.probeContentType(toPath()) ?: ""
     return contentType.startsWith("text/") || contentType in otherTextMimeTypes
 }
