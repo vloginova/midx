@@ -17,7 +17,7 @@ fun main() {
     val root = getInputDirectory()
 
     val startTime = System.currentTimeMillis()
-    val deferredIndex = buildIndexAsync(root)
+    val deferredIndex = buildIndexAsync(listOf(root))
 
     awaitInBackground(deferredIndex, startTime)
         .invokeOnCompletion {

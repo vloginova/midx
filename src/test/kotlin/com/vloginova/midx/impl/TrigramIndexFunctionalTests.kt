@@ -19,7 +19,7 @@ internal class TrigramIndexTest {
     companion object {
         private const val testFilesPath = "/simpleTestFiles"
         private val file = File(TrigramIndexTest::class.java.getResource(testFilesPath).file)
-        val index: TrigramIndex = runBlocking { buildIndexAsync(file).await() }
+        val index: TrigramIndex = runBlocking { buildIndexAsync(listOf(file)).await() }
 
         @Suppress("unused")
         @JvmStatic
@@ -168,7 +168,7 @@ class SmallFilesTrigramIndexTest {
     @Test
     fun `Search on empty file test`() {
         tempFile.writeText("")
-        val index = runBlocking { buildIndexAsync(tempFile).await() }
+        val index = runBlocking { buildIndexAsync(listOf(tempFile)).await() }
         val matches = collectMatches(index, "abcd", false, "/")
         assertTrue(matches.isEmpty(), "Search result on empty file is not empty")
     }
@@ -176,7 +176,7 @@ class SmallFilesTrigramIndexTest {
     @Test
     fun `Search on short file test`() {
         tempFile.writeText("ab")
-        val index = runBlocking { buildIndexAsync(tempFile).await() }
+        val index = runBlocking { buildIndexAsync(listOf(tempFile)).await() }
         val matches = collectMatches(index, "a", false, "/")
 
         assertEquals(1, matches.size, "Unexpected number of matches")

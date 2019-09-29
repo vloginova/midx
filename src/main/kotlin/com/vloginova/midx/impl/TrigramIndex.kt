@@ -1,15 +1,11 @@
 package com.vloginova.midx.impl
 
-import com.vloginova.midx.api.DEFAULT_IO_EXCEPTION_HANDLING_STRATEGY
-import com.vloginova.midx.api.IOExceptionHandlingStrategy
+import com.vloginova.midx.api.IGNORE_DO_NOTHING
+import com.vloginova.midx.api.IOExceptionHandler
 import com.vloginova.midx.api.Index
 import com.vloginova.midx.api.SearchResult
 import com.vloginova.midx.util.*
 import com.vloginova.midx.util.collections.IntKeyMap
-import com.vloginova.midx.util.fullTextSearch
-import com.vloginova.midx.util.parallelMapNotNull
-import com.vloginova.midx.util.tryProcess
-import com.vloginova.midx.util.walkFiles
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.collect
@@ -31,10 +27,9 @@ private const val trigramIndexParallelism = 500
  * be safely used for searching in multi thread context.
  *
  * Index does not support incremental updates.
- * TODO: accept several files
  */
 class TrigramIndex internal constructor(
-    private val rootDirectory: File,
+    private val rootDirectory: Iterable<File>,
     private val indexStorage: TrigramIndexStorage
 ) : Index {
 
@@ -45,22 +40,23 @@ class TrigramIndex internal constructor(
     override suspend fun search(
         text: String,
         ignoreCase: Boolean,
-        handlingStrategy: IOExceptionHandlingStrategy,
+        ioExceptionHandler: IOExceptionHandler,
         processMatch: (SearchResult) -> Unit
     ) {
         if (text.isEmpty()) return
 
         val fileSequence =
-            if (text.length < 3) rootDirectory.walkFiles() else matchingFileCandidates(text, indexStorage)
+            if (text.length < 3) rootDirectory.walkFiles(ioExceptionHandler)
+            else matchingFileCandidates(text, indexStorage)
 
         fileSequence.asFlow()
             .parallelFilter(trigramIndexParallelism) { file ->
-                file.tryProcess(handlingStrategy) {
+                file.tryProcess(ioExceptionHandler) {
                     file.hasTextContent()
                 } ?: false
             }
             .parallelMapNotNull(trigramIndexParallelism) { file ->
-                file.tryProcess(handlingStrategy) {
+                file.tryProcess(ioExceptionHandler) {
                     file.fullTextSearch(text, ignoreCase)
                 }
             }.collect {
@@ -71,12 +67,12 @@ class TrigramIndex internal constructor(
     fun searchAsync(
         text: String,
         ignoreCase: Boolean = false,
-        handlingStrategy: IOExceptionHandlingStrategy = DEFAULT_IO_EXCEPTION_HANDLING_STRATEGY,
+        ioExceptionHandler: IOExceptionHandler = IGNORE_DO_NOTHING,
         context: CoroutineContext = EmptyCoroutineContext,
         processMatch: (SearchResult) -> Unit
     ): Deferred<Unit> {
         return runWithDefaultDispatcherAsync(context) {
-            search(text, ignoreCase, handlingStrategy, processMatch)
+            search(text, ignoreCase, ioExceptionHandler, processMatch)
         }
     }
 
@@ -121,22 +117,22 @@ internal class TrigramIndexStorage : Iterable<IntKeyMap.Entry<MutableList<File>>
 }
 
 /**
- * Initiate [TrigramIndex] building with [context] for [rootDirectory]. If a context doesn't have any
+ * Initiate [TrigramIndex] building with [context] for [files]. If a context doesn't have any
  * [ContinuationInterceptor.Key], [defaultDispatcher] will be used.
  */
 fun buildIndexAsync(
-    rootDirectory: File,
-    handlingStrategy: IOExceptionHandlingStrategy = DEFAULT_IO_EXCEPTION_HANDLING_STRATEGY,
+    files: List<File>,
+    ioExceptionHandler: IOExceptionHandler = IGNORE_DO_NOTHING,
     context: CoroutineContext = EmptyCoroutineContext
 ): Deferred<TrigramIndex> {
     return runWithDefaultDispatcherAsync(context) {
-        buildIndex(rootDirectory, handlingStrategy)
+        buildIndex(files, ioExceptionHandler)
     }
 }
 
 suspend fun buildIndex(
-    rootDirectory: File,
-    handlingStrategy: IOExceptionHandlingStrategy = DEFAULT_IO_EXCEPTION_HANDLING_STRATEGY
+    files: Iterable<File>,
+    ioExceptionHandler: IOExceptionHandler = IGNORE_DO_NOTHING
 ): TrigramIndex {
     val storage = TrigramIndexStorage()
     // The index can be efficiently built with MapReduce pattern. Map runs in parallel, which easily improves
@@ -144,27 +140,28 @@ suspend fun buildIndex(
     // only uses CPU resources, and it is executed in parallel with map step. Experiments didn't show any
     // significant performance improvement when running reduce step in parallel, so it was decided not to complicate
     // the solution.
-    rootDirectory.walkFiles().asFlow()
+    val filesCopy = files.toList()
+    filesCopy.walkFiles(ioExceptionHandler).asFlow()
         .parallelFilter(trigramIndexParallelism) { file ->
-            file.tryProcess(handlingStrategy) {
+            file.tryProcess(ioExceptionHandler) {
                 file.hasTextContent()
             } ?: false
         }
         .parallelMapNotNull(trigramIndexParallelism) { file ->
-            tryCreateFileIndex(file, handlingStrategy, coroutineContext::ensureActive)
+            tryCreateFileIndex(file, ioExceptionHandler, coroutineContext::ensureActive)
         }
         .collect { fileIndex ->
             storage.populateWith(fileIndex)
         }
-    return TrigramIndex(rootDirectory, storage)
+    return TrigramIndex(filesCopy, storage)
 }
 
 private fun tryCreateFileIndex(
     file: File,
-    handlingStrategy: IOExceptionHandlingStrategy,
+    ioExceptionHandler: IOExceptionHandler,
     checkCancelled: () -> Unit
 ): FileIndex? {
-    return file.tryProcess(handlingStrategy) {
+    return file.tryProcess(ioExceptionHandler) {
         val trigrams = TrigramSet.from(file, checkCancelled = checkCancelled)
         FileIndex(file, trigrams)
     }

@@ -1,7 +1,6 @@
 package com.vloginova.midx.impl
 
-import com.vloginova.midx.api.IOExceptionHandlingStrategy
-import com.vloginova.midx.api.IOExceptionHandlingStrategy.Strategy.*
+import com.vloginova.midx.api.ABORT_DO_NOTHING
 import com.vloginova.midx.api.SearchResult
 import com.vloginova.midx.assertCollectionEquals
 import com.vloginova.midx.generateRandomText
@@ -26,8 +25,8 @@ class TrigramIndexParallelBuildTest {
     fun `Ensure sequential index building produce the same result as parallel`() {
         runBlocking {
             val indexBuiltSequentially =
-                buildIndexAsync(rootDirectory, context = newSingleThreadContext("Test")).await()
-            val indexBuiltInParallel = buildIndexAsync(rootDirectory).await()
+                buildIndexAsync(listOf(rootDirectory), context = newSingleThreadContext("Test")).await()
+            val indexBuiltInParallel = buildIndexAsync(listOf(rootDirectory)).await()
 
             assertEquals(indexBuiltSequentially, indexBuiltInParallel)
         }
@@ -37,7 +36,7 @@ class TrigramIndexParallelBuildTest {
     @Test
     fun `Ensure sequential index search produce the same result as parallel`() {
         runBlocking {
-            val index = buildIndexAsync(rootDirectory).await()
+            val index = buildIndexAsync(listOf(rootDirectory)).await()
             val searchText = generateRandomText(9)
 
             val sequentialSearchResult = ArrayList<SearchResult>()
@@ -57,7 +56,7 @@ class TrigramIndexParallelBuildTest {
     @Test
     fun `Check build cancellation`() {
         runBlocking {
-            val indexBuiltInParallel = buildIndexAsync(rootDirectory)
+            val indexBuiltInParallel = buildIndexAsync(listOf(rootDirectory))
             val cancellationTime = measureTimeMillis { indexBuiltInParallel.cancelAndJoin() }
             assertEquals(true, indexBuiltInParallel.isCancelled, "Build was completed before cancellation")
             assertTrue(cancellationTime < 100, "Cancellation was too long")
@@ -98,7 +97,7 @@ class TrigramIndexParallelBuildTest {
 }
 
 @ExperimentalCoroutinesApi
-class IOExceptionHandlingStrategyTest {
+class IOExceptionHandlerTest {
 
     private lateinit var rootDirectory: File
 
@@ -113,10 +112,10 @@ class IOExceptionHandlingStrategyTest {
     }
 
     @Test
-    fun `Check built is successful without exception when input files are cleaned up for IGNORE strategy`() {
+    fun `Check built is successful without exception when input files are cleaned up when ignoring exception`() {
         val counter = AtomicInteger()
         runBlocking {
-            val indexBuiltInParallel = buildIndexAsync(rootDirectory, IOExceptionHandlingStrategy(IGNORE) { _, _ ->
+            val indexBuiltInParallel = buildIndexAsync(listOf(rootDirectory), { _, _ ->
                 counter.incrementAndGet()
             })
             delayAndCleanUp(rootDirectory)
@@ -126,71 +125,12 @@ class IOExceptionHandlingStrategyTest {
     }
 
     @Test
-    fun `Check build is successful when input files are cleaned up for RETRY_THEN_IGNORE strategy`() {
-        val counter = AtomicInteger()
+    fun `Check build is cancelled when input files are cleaned up for ABORT_DO_NOTHING`() {
         runBlocking {
-            val indexBuiltInParallel =
-                buildIndexAsync(rootDirectory, IOExceptionHandlingStrategy(RETRY_THEN_IGNORE) { _, _ ->
-                    counter.incrementAndGet()
-                })
-            delayAndCleanUp(rootDirectory)
-            indexBuiltInParallel.await()
-        }
-        assertTrue(counter.get() > 0, "Some files should have been failed to process")
-    }
-
-    @Test
-    fun `Check build is successful when input files are cleaned up and restored for RETRY_THEN_IGNORE strategy`() {
-        val counter = AtomicInteger()
-        runBlocking {
-            val indexBuiltInParallel =
-                buildIndexAsync(rootDirectory, IOExceptionHandlingStrategy(RETRY_THEN_IGNORE) { file, _ ->
-                    counter.incrementAndGet()
-                    recreateFile(file)
-                })
-            delayAndCleanUp(rootDirectory)
-            indexBuiltInParallel.await()
-        }
-        assertTrue(counter.get() > 0, "Some files should have been failed to process")
-    }
-
-    @Test
-    fun `Check build is cancelled when input files are cleaned up for ABORT strategy`() {
-        runBlocking {
-            val indexBuiltInParallel = buildIndexAsync(rootDirectory, IOExceptionHandlingStrategy(ABORT) { _, _ -> })
+            val indexBuiltInParallel = buildIndexAsync(listOf(rootDirectory), ABORT_DO_NOTHING)
             delayAndCleanUp(rootDirectory)
             assertThrows<IOException> { runBlocking { indexBuiltInParallel.await() } }
         }
-    }
-
-    @Test
-    fun `Check build is cancelled when input files are cleaned up for RETRY_THEN_ABORT strategy`() {
-        runBlocking {
-            val indexBuiltInParallel =
-                buildIndexAsync(rootDirectory, IOExceptionHandlingStrategy(RETRY_THEN_ABORT) { _, _ -> })
-            delayAndCleanUp(rootDirectory)
-            assertThrows<IOException> { runBlocking { indexBuiltInParallel.await() } }
-        }
-    }
-
-    @Test
-    fun `Check build is not cancelled when input files are cleaned up and restored for RETRY_THEN_ABORT strategy`() {
-        val counter = AtomicInteger()
-        runBlocking {
-            val indexBuiltInParallel =
-                buildIndexAsync(rootDirectory, IOExceptionHandlingStrategy(RETRY_THEN_ABORT) { file, _ ->
-                    recreateFile(file)
-                    counter.incrementAndGet()
-                })
-            delayAndCleanUp(rootDirectory)
-            indexBuiltInParallel.await()
-        }
-        assertTrue(counter.get() > 0, "Some files should have been failed to process")
-    }
-
-    private fun recreateFile(file: File) {
-        file.parentFile.mkdirs()
-        file.createNewFile()
     }
 
     private suspend fun delayAndCleanUp(rootDirectory: File) {

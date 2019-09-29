@@ -1,7 +1,6 @@
 package com.vloginova.midx.util
 
-import com.vloginova.midx.api.IOExceptionHandlingStrategy
-import com.vloginova.midx.api.IOExceptionHandlingStrategy.Strategy.*
+import com.vloginova.midx.api.IOExceptionHandler
 import com.vloginova.midx.api.SearchResult
 import java.io.File
 import java.io.IOException
@@ -35,7 +34,17 @@ private val lineSeparatorRegex = Regex("\\r\\n|\\n|\\r")
 /**
  * Consist of the files in the provided directory and all its subdirectories, which have text content.
  */
-internal fun File.walkFiles(): Sequence<File> = walk().filter { it.isFile }
+internal fun Iterable<File>.walkFiles(ioExceptionHandler: IOExceptionHandler): Sequence<File> = sequence {
+    forEach { file ->
+        file.tryProcess(ioExceptionHandler) {
+            when {
+                file.isDirectory -> yieldAll(file.walk().onFail(ioExceptionHandler).filter { it.isFile })
+                file.isFile -> yield(file)
+                else -> throw IOException("Not a file or directory: $file")
+            }
+        }
+    }
+}
 
 /**
  * Performs fulltext search, treating all line separators in [text] and the file itself uniformly.
@@ -68,23 +77,19 @@ internal fun File.hasTextContent(): Boolean {
 }
 
 /**
- * Tries to execute [block]. In case [IOException] occurs, follows the provided [handlingStrategy]
+ * Tries to execute [block]. In case [IOException] occurs, follows the provided [ioExceptionHandler]
  *
- * @throws IOException If an I/O error occurs, and it wasn't ignored according to [handlingStrategy]
+ * @throws IOException If an I/O error occurs, and it wasn't ignored according to [ioExceptionHandler]
  */
-internal fun <T> File.tryProcess(
-    handlingStrategy: IOExceptionHandlingStrategy,
+internal inline fun <T> File.tryProcess(
+    ioExceptionHandler: IOExceptionHandler,
     block: () -> T?
 ): T? {
     return try {
         return block()
     } catch (e: IOException) {
-        handlingStrategy.callback(this, e)
-        when (handlingStrategy.strategy) {
-            RETRY_THEN_IGNORE, RETRY_THEN_ABORT -> tryProcess(handlingStrategy.degrade(), block)
-            ABORT -> throw e
-            IGNORE -> null
-        }
+        ioExceptionHandler(this, e)
+        null
     }
 }
 

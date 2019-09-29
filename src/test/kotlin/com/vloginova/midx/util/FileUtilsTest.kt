@@ -1,7 +1,7 @@
 package com.vloginova.midx.util
 
-import com.vloginova.midx.api.IOExceptionHandlingStrategy
-import com.vloginova.midx.api.IOExceptionHandlingStrategy.Strategy.*
+import com.vloginova.midx.api.ABORT_DO_NOTHING
+import com.vloginova.midx.api.IGNORE_DO_NOTHING
 import com.vloginova.midx.api.SearchResult
 import com.vloginova.midx.assertCollectionEquals
 import org.junit.jupiter.api.AfterEach
@@ -175,94 +175,29 @@ class FileUtilsTryProcessTest {
     fun `Try process returns file content for existing file`() {
         val text = "text"
         file.writeText(text)
-        var callbackCallCount = 0
-        val bytes = file.tryProcess(IOExceptionHandlingStrategy(IGNORE) { _, _ ->
-            callbackCallCount++
-        }) {
+        val bytes = file.tryProcess(IGNORE_DO_NOTHING) {
             file.readBytes()
         }
-        assertEquals(0, callbackCallCount, "Unexpected callback call count")
         assertEquals(text, String(bytes ?: ByteArray(0)), "Unexpected file content")
     }
 
     @Test
-    fun `Try process returns null with IGNORE strategy even though recreated`() {
+    fun `Try process returns null with IGNORE_DO_NOTHING`() {
         file.delete()
-        var callbackCallCount = 0
-        val bytes = file.tryProcess(IOExceptionHandlingStrategy(IGNORE) { _, _ ->
-            file.createNewFile()
-            callbackCallCount++
-        }) {
+        val bytes = file.tryProcess(IGNORE_DO_NOTHING) {
             file.readBytes()
         }
-        assertEquals(1, callbackCallCount, "Unexpected callback call count")
         assertNull(bytes, "Not null was returned for non-existing file")
     }
 
     @Test
-    fun `Try process returns null with RETRY_THEN_IGNORE strategy`() {
+    fun `Try process fails with ABORT_DO_NOTHING`() {
         file.delete()
-        var callbackCallCount = 0
-        val bytes = file.tryProcess(IOExceptionHandlingStrategy(RETRY_THEN_IGNORE) { _, _ -> callbackCallCount++ }) {
-            file.readBytes()
-        }
-        assertEquals(2, callbackCallCount, "Unexpected callback call count")
-        assertNull(bytes, "Not null was returned for non-existing file")
-    }
-
-    @Test
-    fun `Try process reads file with RETRY_THEN_IGNORE strategy when recreated`() {
-        file.delete()
-        var callbackCallCount = 0
-        val bytes = file.tryProcess(IOExceptionHandlingStrategy(RETRY_THEN_IGNORE) { _, _ ->
-            file.createNewFile()
-            callbackCallCount++
-        }) {
-            file.readBytes()
-        }
-        assertEquals(1, callbackCallCount, "Unexpected callback call count")
-        assertNotNull(bytes, "Null was returned for existing file")
-    }
-
-    @Test
-    fun `Try process fails with ABORT strategy even though recreated`() {
-        file.delete()
-        var callbackCallCount = 0
         assertThrows<IOException> {
-            file.tryProcess(IOExceptionHandlingStrategy(ABORT) { _, _ ->
-                file.createNewFile()
-                callbackCallCount++
-            }) {
+            file.tryProcess(ABORT_DO_NOTHING) {
                 file.readBytes()
             }
         }
-        assertEquals(1, callbackCallCount, "Unexpected callback call count")
-    }
-
-    @Test
-    fun `Try process fails with RETRY_THEN_ABORT strategy`() {
-        file.delete()
-        var callbackCallCount = 0
-        assertThrows<IOException> {
-            file.tryProcess(IOExceptionHandlingStrategy(RETRY_THEN_ABORT) { _, _ -> callbackCallCount++ }) {
-                file.readBytes()
-            }
-        }
-        assertEquals(2, callbackCallCount, "Unexpected callback call count")
-    }
-
-    @Test
-    fun `Try process reads file with RETRY_THEN_ABORT strategy when recreated`() {
-        file.delete()
-        var callbackCallCount = 0
-        val bytes = file.tryProcess(IOExceptionHandlingStrategy(RETRY_THEN_ABORT) { _, _ ->
-            file.createNewFile()
-            callbackCallCount++
-        }) {
-            file.readBytes()
-        }
-        assertEquals(1, callbackCallCount, "Unexpected callback call count")
-        assertNotNull(bytes, "Null was returned for existing file")
     }
 
 }
@@ -272,10 +207,26 @@ class FileUtilsMicsTest {
     @Test
     fun `Check walkFiles`() {
         val testDir = "/simpleTestFiles"
-        val file = File(FileUtilsMicsTest::class.java.getResource(testDir).file)
-        val files = file.walkFiles().toList()
+        val fileOther = File(FileUtilsMicsTest::class.java.getResource("$testDir/other").file)
+        val fileRussian = File(FileUtilsMicsTest::class.java.getResource("$testDir/russian").file)
+        val text1 = File(FileUtilsMicsTest::class.java.getResource("$testDir/text1.txt").file)
+        val text2 = File(FileUtilsMicsTest::class.java.getResource("$testDir/text2.txt").file)
+        val textCompressed = File(FileUtilsMicsTest::class.java.getResource("$testDir/textCompressed.zip").file)
+        val files = listOf(fileOther, fileRussian, text1, text2, textCompressed).walkFiles(ABORT_DO_NOTHING).toList()
         assertEquals(5, files.count(), "Unexpected number of files in $testDir")
         assertTrue(files.all { it.isFile }, "Non-file is gathered in walkFiles()")
+    }
+
+    @Test
+    fun `Check walkFiles throws exception on non-existing path with ABORT_DO_NOTHING`() {
+        val file = File("DO/NOT/EXIST")
+        assertThrows<IOException> { listOf(file).walkFiles(ABORT_DO_NOTHING).toList() }
+    }
+
+    @Test
+    fun `Check walkFiles do not throw exception on non-existing path with IGNORE_DO_NOTHING`() {
+        val file = File("DO/NOT/EXIST")
+        listOf(file).walkFiles(IGNORE_DO_NOTHING).toList()
     }
 
     @Test
