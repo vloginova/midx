@@ -4,6 +4,7 @@ buildscript {
 
 plugins {
     id 'org.jetbrains.kotlin.jvm' version '1.3.41'
+    id 'java'
 }
 
 group 'com.vloginova.midx'
@@ -16,9 +17,8 @@ repositories {
 dependencies {
     compile 'io.github.microutils:kotlin-logging:1.7.6'
     compile 'org.slf4j:slf4j-simple:1.7.26'
-
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.1'
+    compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+    compile 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.1'
 
     testImplementation 'org.jetbrains.kotlin:kotlin-reflect:1.3.50'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.3.1'
@@ -44,5 +44,15 @@ compileTestKotlin {
         freeCompilerArgs += ["-Xuse-experimental=kotlin.Experimental",
                              "-Xuse-experimental=kotlinx.coroutines.ExperimentalCoroutinesApi"]
         jvmTarget = "1.8"
+    }
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'com.vloginova.midx.MainKt'
+    }
+
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
     }
 }
