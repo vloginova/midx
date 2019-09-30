@@ -1,14 +1,13 @@
 package com.vloginova.midx
 
-import com.vloginova.midx.util.collections.IntSet
-import com.vloginova.midx.util.collections.intHashCode
+import com.vloginova.midx.collections.IntSet
+import com.vloginova.midx.collections.intHashCode
 import org.junit.jupiter.api.Assertions.assertEquals
-import java.io.File
 import kotlin.random.Random
 
 val alphabet = (('A'..'z').toList() + ('А'..'я') + arrayOf('{', '}', '(', ')', '\n', '\r')).toCharArray()
 
-fun IntSet.toSet(): Set<Int> {
+internal fun IntSet.toSet(): Set<Int> {
     val set = HashSet<Int>()
     for (value in this) {
         set.add(value)

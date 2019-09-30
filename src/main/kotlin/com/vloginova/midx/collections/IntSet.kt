@@ -1,9 +1,9 @@
-package com.vloginova.midx.util.collections
+package com.vloginova.midx.collections
 
 /**
- * IntSet is an optimized set for Int values supporting only add operation.
+ * Optimized primitive Int value set.
  */
-class IntSet(initialCapacity: Int = 1 shl 8) {
+internal class IntSet(initialCapacity: Int = 1 shl 8) {
     private var array: IntArray
     private var containsZero = false
     private var mask: Int

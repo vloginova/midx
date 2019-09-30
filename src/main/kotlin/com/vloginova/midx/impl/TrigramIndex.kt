@@ -5,7 +5,7 @@ import com.vloginova.midx.api.IOExceptionHandler
 import com.vloginova.midx.api.Index
 import com.vloginova.midx.api.SearchResult
 import com.vloginova.midx.util.*
-import com.vloginova.midx.util.collections.IntKeyMap
+import com.vloginova.midx.collections.IntKeyMap
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.asFlow

@@ -1,9 +1,9 @@
-package com.vloginova.midx.util.collections
+package com.vloginova.midx.collections
 
 /**
  * IntKeyMap is an open-addressing hash map, where key is a primitive Int.
  */
-class IntKeyMap<T>(initialCapacity: Int = 1 shl 4) : Iterable<IntKeyMap.Entry<T>> {
+internal class IntKeyMap<T>(initialCapacity: Int = 1 shl 4) : Iterable<IntKeyMap.Entry<T>> {
     data class Entry<T>(val key: Int, val value: T)
 
     private var array: Array<Entry<T>?>

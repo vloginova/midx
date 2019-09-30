@@ -1,8 +1,7 @@
-package com.vloginova.midx.util
+package com.vloginova.midx.collections
 
 import com.vloginova.midx.generateIntWithHashcodeFor
 import com.vloginova.midx.getRandomInt
-import com.vloginova.midx.util.collections.IntKeyMap
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test

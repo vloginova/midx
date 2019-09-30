@@ -1,6 +1,6 @@
 package com.vloginova.midx.impl
 
-import com.vloginova.midx.util.collections.IntSet
+import com.vloginova.midx.collections.IntSet
 import java.io.File
 import java.nio.charset.Charset
 import kotlin.math.sqrt
