@@ -2,7 +2,6 @@ package com.vloginova.midx.impl
 
 import com.vloginova.midx.alphabet
 import com.vloginova.midx.assertCollectionEquals
-import com.vloginova.midx.util.replaceFileSeparatorsWithLf
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -189,3 +188,5 @@ private fun TrigramSet.toSet(): Set<Int> {
     }
     return set
 }
+
+private fun String.replaceFileSeparatorsWithLf(): String = replace(Regex("\\r\\n|\\n|\\r"), "\n")

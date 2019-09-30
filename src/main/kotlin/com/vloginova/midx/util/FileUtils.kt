@@ -116,53 +116,57 @@ private fun File.fullTextSearchMultiLine(
     ignoreCase: Boolean,
     charset: Charset = Charsets.UTF_8
 ): Collection<SearchResult> {
-    val splitText = text.split(lineSeparatorRegex)
-    val splitTextLength = splitText.joinToString("\n").length
+    val lines = text.split(lineSeparatorRegex)
+    val splitTextLength = lines.joinToString("\n").length
 
     val searchResults = mutableListOf<SearchResult>()
     val accumulatedLines = LinkedList<String>()
 
     var lineNumber = 1
     forEachLine(charset) { line ->
+        assert(accumulatedLines.size < lines.size) {
+            "Invariant: accumulatedLines size must be less than lines size"
+        }
         accumulatedLines.add(line)
 
-        if (accumulatedLines.size == splitText.size && line.startsWith(splitText.last(), ignoreCase)) {
+        val isLineMatch = isLineMatchAt(accumulatedLines.lastIndex, accumulatedLines, lines, ignoreCase)
+        val isFullMatch = isLineMatch && accumulatedLines.size == lines.size
+
+        if (isFullMatch) {
             val matchingText = accumulatedLines.joinToString("\n")
-            val startIndex = matchingText.indexOf(splitText.first(), ignoreCase = ignoreCase)
+            val startIndex = accumulatedLines.first().length - lines.first().length
             val endIndex = startIndex + splitTextLength
-            val matchLineNumber = lineNumber - splitText.size + 1
+            val matchLineNumber = lineNumber - lines.size + 1
             searchResults.add(SearchResult(this, matchingText, matchLineNumber, startIndex, endIndex))
-            accumulatedLines.removeFirst()
         }
 
-        dropWhileNoPotentialMatch(accumulatedLines, splitText, ignoreCase)
+        if (isFullMatch || !isLineMatch) {
+            do {
+                accumulatedLines.removeFirst()
+            } while (!isPotentialMatch(accumulatedLines, lines, ignoreCase))
+        }
+
         lineNumber++
     }
     return searchResults
 }
 
-private fun dropWhileNoPotentialMatch(
-    accumulatedLines: LinkedList<String>,
-    splitText: List<String>,
+private fun isPotentialMatch(accumulatedLines: List<String>, lines: List<String>, ignoreCase: Boolean): Boolean {
+    return accumulatedLines.indices.all { i ->
+        isLineMatchAt(i, accumulatedLines, lines, ignoreCase)
+    }
+}
+
+private fun isLineMatchAt(
+    i: Int,
+    accumulatedLines: List<String>,
+    lines: List<String>,
     ignoreCase: Boolean
-) {
-    while (!accumulatedLines.isEmpty()
-        && !(accumulatedLines.first.endsWith(splitText.first(), ignoreCase)
-                && splitText.startsWith(accumulatedLines.subList(0, accumulatedLines.lastIndex), ignoreCase))
-    ) {
-        accumulatedLines.removeFirst()
+): Boolean {
+    assert(i < lines.size)
+    return when (i) {
+        0 -> accumulatedLines[i].endsWith(lines[i], ignoreCase)
+        lines.lastIndex -> accumulatedLines[i].startsWith(lines[i], ignoreCase)
+        else -> accumulatedLines[i].equals(lines[i], ignoreCase)
     }
 }
-
-private fun List<String>.startsWith(other: List<String>, ignoreCase: Boolean): Boolean {
-    if (this.size < other.size) return false
-
-    if (this.isEmpty()) return true
-
-    for (i in other.indices) {
-        if (!this[i].equals(other[i], ignoreCase)) return false
-    }
-    return true
-}
-
-fun String.replaceFileSeparatorsWithLf(): String = replace(lineSeparatorRegex, "\n")
