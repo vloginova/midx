@@ -1,5 +1,6 @@
 package com.vloginova.midx.impl
 
+import com.vloginova.midx.api.ABORT_DO_NOTHING
 import com.vloginova.midx.api.SearchResult
 import com.vloginova.midx.assertCollectionEquals
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -9,9 +10,12 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 import java.io.File
+import java.io.IOException
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.stream.Stream
 
 @ExperimentalCoroutinesApi
@@ -184,6 +188,30 @@ class SmallFilesTrigramIndexTest {
         val searchResult = matches.first()
         val expectedSearchResult = SearchResult(searchResult.file, "ab", 1, 0, 1)
         assertEquals(expectedSearchResult, searchResult, "Unexpected search result")
+    }
+
+}
+
+class IOExceptionHandlerTest {
+
+    @Test
+    fun `Check built is successful without exception when input files are cleaned up when ignoring exception`() {
+        val counter = AtomicInteger()
+        runBlocking {
+            val indexBuiltInParallel = buildIndexAsync(listOf(File("DO/NOT/EXIST")), { _, _ ->
+                counter.incrementAndGet()
+            })
+            indexBuiltInParallel.await()
+        }
+        assertTrue(counter.get() > 0, "Some files should have been failed to process")
+    }
+
+    @Test
+    fun `Check build is cancelled when input files are cleaned up for ABORT_DO_NOTHING`() {
+        runBlocking {
+            val indexBuiltInParallel = buildIndexAsync(listOf(File("DO/NOT/EXIST")), ABORT_DO_NOTHING)
+            assertThrows<IOException> { runBlocking { indexBuiltInParallel.await() } }
+        }
     }
 
 }

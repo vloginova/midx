@@ -1,16 +1,15 @@
 package com.vloginova.midx.impl
 
-import com.vloginova.midx.api.ABORT_DO_NOTHING
 import com.vloginova.midx.api.SearchResult
 import com.vloginova.midx.assertCollectionEquals
 import com.vloginova.midx.generateRandomText
 import kotlinx.coroutines.*
-import org.junit.jupiter.api.*
+import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.function.Executable
 import java.io.File
-import java.io.IOException
-import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.memberProperties
@@ -57,26 +56,44 @@ class TrigramIndexParallelBuildTest {
     fun `Check build cancellation`() {
         runBlocking {
             val indexBuiltInParallel = buildIndexAsync(listOf(rootDirectory))
+            delay(10)
             val cancellationTime = measureTimeMillis { indexBuiltInParallel.cancelAndJoin() }
             assertEquals(true, indexBuiltInParallel.isCancelled, "Build was completed before cancellation")
-            assertTrue(cancellationTime < 100, "Cancellation was too long")
+            assertTrue(cancellationTime < 200, "Cancellation was too long: $cancellationTime")
         }
     }
 
     private fun assertEquals(expectedIndex: TrigramIndex, actualIndex: TrigramIndex) {
-        val field =
-            TrigramIndex::class.memberProperties.first { it.name == "indexStorage" } as KProperty1<TrigramIndex, TrigramIndexStorage>
-        field.isAccessible = true
+        val indexStorageField = TrigramIndex::class.memberProperties
+            .first { it.name == "indexStorage" } as KProperty1<TrigramIndex, TrigramIndexStorage>
+        indexStorageField.isAccessible = true
 
-        val indexStorageExpected = field.get(expectedIndex)
-        val indexStorageActual = field.get(actualIndex)
+        val partitionsField = TrigramIndexStorage::class.memberProperties
+            .first { it.name == "partitions" } as KProperty1<TrigramIndexStorage, Collection<TrigramIndexStoragePartition>>
+        partitionsField.isAccessible = true
 
-        assertEquals(indexStorageExpected.size, indexStorageActual.size, "Size of storages are differ")
-        assertAll("Expected entity is missed in the actual storage", indexStorageExpected.map { entity ->
+        val partitionsExpected = partitionsField(indexStorageField.get(expectedIndex))
+        val partitionsActual = partitionsField(indexStorageField.get(actualIndex))
+
+        val mergedExpected = mergePartitions(partitionsExpected)
+        val mergedActual = mergePartitions(partitionsActual)
+
+        assertEquals(mergedExpected.size, mergedActual.size, "Size of storages are differ")
+        assertAll("Expected entity is missed in the actual storage", mergedExpected.map { entity ->
             Executable {
-                assertEquals(entity.value.size, indexStorageActual[entity.key]!!.intersect(entity.value).size)
+                assertEquals(entity.value.size, mergedActual[entity.key]!!.intersect(entity.value).size)
             }
         })
+    }
+
+    private fun mergePartitions(partitions: Collection<TrigramIndexStoragePartition>): HashMap<Int, ArrayList<File>> {
+        val result = HashMap<Int, ArrayList<File>>()
+        partitions.forEach { partition ->
+            for ((trigram, files) in partition) {
+                result.computeIfAbsent(trigram) { ArrayList() }.addAll(files)
+            }
+        }
+        return result
     }
 
     companion object {
@@ -93,50 +110,6 @@ class TrigramIndexParallelBuildTest {
         fun deleteInputData() {
             rootDirectory.deleteRecursively()
         }
-    }
-}
-
-@ExperimentalCoroutinesApi
-class IOExceptionHandlerTest {
-
-    private lateinit var rootDirectory: File
-
-    @BeforeEach
-    fun prepareInputData() {
-        rootDirectory = generateInputData(folderNumber = 1)
-    }
-
-    @AfterEach
-    fun deleteTestFile() {
-        rootDirectory.deleteRecursively()
-    }
-
-    @Test
-    fun `Check built is successful without exception when input files are cleaned up when ignoring exception`() {
-        val counter = AtomicInteger()
-        runBlocking {
-            val indexBuiltInParallel = buildIndexAsync(listOf(rootDirectory), { _, _ ->
-                counter.incrementAndGet()
-            })
-            delayAndCleanUp(rootDirectory)
-            indexBuiltInParallel.await()
-        }
-        assertTrue(counter.get() > 0, "Some files should have been failed to process")
-    }
-
-    @Test
-    fun `Check build is cancelled when input files are cleaned up for ABORT_DO_NOTHING`() {
-        runBlocking {
-            val indexBuiltInParallel = buildIndexAsync(listOf(rootDirectory), ABORT_DO_NOTHING)
-            delayAndCleanUp(rootDirectory)
-            assertThrows<IOException> { runBlocking { indexBuiltInParallel.await() } }
-        }
-    }
-
-    private suspend fun delayAndCleanUp(rootDirectory: File) {
-        // Wait a little so that processing is in progress
-        delay(100L)
-        cleanUpInputData(rootDirectory)
     }
 }
 

@@ -7,7 +7,9 @@ import com.vloginova.midx.api.SearchResult
 import com.vloginova.midx.util.*
 import com.vloginova.midx.util.collections.IntKeyMap
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.collect
 import java.io.File
 import kotlin.coroutines.ContinuationInterceptor
@@ -15,12 +17,10 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.coroutineContext
 
-private val availableProcessors = Runtime.getRuntime().availableProcessors()
-@UseExperimental(ObsoleteCoroutinesApi::class)
-private val defaultDispatcher by lazy { newFixedThreadPoolContext(availableProcessors + 1, "Trigram Index Builder") }
+private val AVAILABLE_PROCESSORS = Runtime.getRuntime().availableProcessors()
 
-// Number of files that can be processed at the same simultaneously
-private const val trigramIndexParallelism = 500
+// For file processing operations
+private const val TRIGRAM_INDEX_CONCURRENCY_LEVEL = 128
 
 /**
  * [TrigramIndex] is represented as a reverse index with a trigram as a key. The class is immutable, so it can
@@ -41,26 +41,31 @@ class TrigramIndex internal constructor(
         text: String,
         ignoreCase: Boolean,
         ioExceptionHandler: IOExceptionHandler,
-        processMatch: (SearchResult) -> Unit
+        context: CoroutineContext,
+        processMatch: suspend (SearchResult) -> Unit
     ) {
         if (text.isEmpty()) return
 
         val fileSequence =
             if (text.length < 3) rootDirectory.walkFiles(ioExceptionHandler)
-            else matchingFileCandidates(text, indexStorage)
+            else matchingFileCandidates(text)
 
         fileSequence.asFlow()
-            .parallelFilter(trigramIndexParallelism) { file ->
+            .concurrentFilter(Dispatchers.IO + context, TRIGRAM_INDEX_CONCURRENCY_LEVEL) { file ->
                 file.tryProcess(ioExceptionHandler) {
                     file.hasTextContent()
                 } ?: false
             }
-            .parallelMapNotNull(trigramIndexParallelism) { file ->
+            .concurrentMapNotNull(Dispatchers.IO + context, TRIGRAM_INDEX_CONCURRENCY_LEVEL) { file ->
                 file.tryProcess(ioExceptionHandler) {
                     file.fullTextSearch(text, ignoreCase)
                 }
-            }.collect {
-                it.forEach(processMatch)
+            }
+            .buffer(Channel.UNLIMITED)
+            .collect { results ->
+                for (result in results) {
+                    processMatch(result)
+                }
             }
     }
 
@@ -69,22 +74,17 @@ class TrigramIndex internal constructor(
         ignoreCase: Boolean = false,
         ioExceptionHandler: IOExceptionHandler = IGNORE_DO_NOTHING,
         context: CoroutineContext = EmptyCoroutineContext,
-        processMatch: (SearchResult) -> Unit
+        processMatch: suspend (SearchResult) -> Unit
     ): Deferred<Unit> {
-        return runWithDefaultDispatcherAsync(context) {
-            search(text, ignoreCase, ioExceptionHandler, processMatch)
+        return GlobalScope.async(Dispatchers.IO + context) {
+            search(text, ignoreCase, ioExceptionHandler, context, processMatch)
         }
     }
 
-    private fun matchingFileCandidates(text: String, indexIndexStorage: TrigramIndexStorage): Sequence<File> {
+    private fun matchingFileCandidates(text: String): Sequence<File> {
         check(text.length >= 3) { "Cannot search in index inputs with length les than 3" }
-
         val trigrams = TrigramSet.from(text)
-        var intersection = indexIndexStorage[trigrams.first()]?.toSet() ?: emptySet()
-        for (trigram in trigrams) {
-            indexIndexStorage[trigram]?.let { intersection = intersection.intersect(it) }
-        }
-        return intersection.asSequence()
+        return indexStorage.getIntersectionOf(trigrams).asSequence()
     }
 
 }
@@ -95,7 +95,23 @@ internal data class FileIndex(val file: File, val trigrams: TrigramSet)
  * [TrigramIndexStorage] is an internal structure of [TrigramIndex]. Maps trigrams to the collection of files where
  * it is present.
  */
-internal class TrigramIndexStorage : Iterable<IntKeyMap.Entry<MutableList<File>>> {
+internal class TrigramIndexStorage(private val partitions: Collection<TrigramIndexStoragePartition>) {
+
+    fun getIntersectionOf(trigrams: TrigramSet): Collection<File> {
+        return partitions
+            .map { partition -> partition.getIntersectionOf(trigrams) }
+            .reduce { acc, set -> acc.union(set) }
+    }
+
+}
+
+internal typealias TrigramIndexEntry = IntKeyMap.Entry<MutableList<File>>
+
+/**
+ * [TrigramIndexStoragePartition] is a partition of [TrigramIndex]. Each partition contains information on different
+ * set of files, so that each partition is a complete index for files it represents.
+ */
+internal class TrigramIndexStoragePartition : Iterable<TrigramIndexEntry> {
     private val internalMap = IntKeyMap<MutableList<File>>()
 
     val size: Int
@@ -103,57 +119,65 @@ internal class TrigramIndexStorage : Iterable<IntKeyMap.Entry<MutableList<File>>
 
     operator fun get(key: Int): MutableList<File>? = internalMap[key]
 
-    override fun iterator(): Iterator<IntKeyMap.Entry<MutableList<File>>> = internalMap.iterator()
+    override fun iterator(): Iterator<TrigramIndexEntry> = internalMap.iterator()
 
     /**
      * Reverses [FileIndex] and populates [TrigramIndexStorage]
      */
     fun populateWith(fileIndex: FileIndex) {
         for (trigram in fileIndex.trigrams) {
-            internalMap.computeIfAbsent(trigram) { ArrayList() }
-                .also { files -> files.add(fileIndex.file) }
+            internalMap.computeIfAbsent(trigram) { ArrayList() }.add(fileIndex.file)
         }
     }
+
+    fun getIntersectionOf(trigrams: TrigramSet): Collection<File> {
+        var intersection = this[trigrams.first()]?.toSet() ?: emptySet()
+        for (trigram in trigrams) {
+            if (intersection.isEmpty()) return intersection
+            intersection = intersection.intersect(this[trigram] ?: emptyList())
+        }
+        return intersection
+    }
+
 }
 
 /**
  * Initiate [TrigramIndex] building with [context] for [files]. If a context doesn't have any
- * [ContinuationInterceptor.Key], [defaultDispatcher] will be used.
+ * [ContinuationInterceptor.Key], default dispatchers will be used. [files] should not contain duplicates.
  */
 fun buildIndexAsync(
     files: List<File>,
     ioExceptionHandler: IOExceptionHandler = IGNORE_DO_NOTHING,
     context: CoroutineContext = EmptyCoroutineContext
 ): Deferred<TrigramIndex> {
-    return runWithDefaultDispatcherAsync(context) {
-        buildIndex(files, ioExceptionHandler)
+    return GlobalScope.async(Dispatchers.Default + context) {
+        buildIndex(files, ioExceptionHandler, context)
     }
 }
 
 suspend fun buildIndex(
     files: Iterable<File>,
-    ioExceptionHandler: IOExceptionHandler = IGNORE_DO_NOTHING
+    ioExceptionHandler: IOExceptionHandler = IGNORE_DO_NOTHING,
+    context: CoroutineContext = EmptyCoroutineContext
 ): TrigramIndex {
-    val storage = TrigramIndexStorage()
-    // The index can be efficiently built with MapReduce pattern. Map runs in parallel, which easily improves
-    // performance because of huge amount of IO operations together with computational ones. Reduce, however,
-    // only uses CPU resources, and it is executed in parallel with map step. Experiments didn't show any
-    // significant performance improvement when running reduce step in parallel, so it was decided not to complicate
-    // the solution.
-    val filesCopy = files.toList()
-    filesCopy.walkFiles(ioExceptionHandler).asFlow()
-        .parallelFilter(trigramIndexParallelism) { file ->
+    val storages = files.walkFiles(ioExceptionHandler).asFlow()
+        .concurrentFilter(Dispatchers.IO + context, TRIGRAM_INDEX_CONCURRENCY_LEVEL) { file ->
             file.tryProcess(ioExceptionHandler) {
                 file.hasTextContent()
             } ?: false
         }
-        .parallelMapNotNull(trigramIndexParallelism) { file ->
+        .concurrentMapNotNull(Dispatchers.IO + context, TRIGRAM_INDEX_CONCURRENCY_LEVEL) { file ->
             tryCreateFileIndex(file, ioExceptionHandler, coroutineContext::ensureActive)
         }
-        .collect { fileIndex ->
-            storage.populateWith(fileIndex)
+        .buffer(Channel.UNLIMITED)
+        .partitionFold(
+            Dispatchers.Default + context,
+            AVAILABLE_PROCESSORS,
+            ::TrigramIndexStoragePartition
+        ) { storage, fileIndex ->
+            storage.apply { populateWith(fileIndex) }
         }
-    return TrigramIndex(filesCopy, storage)
+    return TrigramIndex(files, TrigramIndexStorage(storages))
 }
 
 private fun tryCreateFileIndex(
@@ -164,13 +188,5 @@ private fun tryCreateFileIndex(
     return file.tryProcess(ioExceptionHandler) {
         val trigrams = TrigramSet.from(file, checkCancelled = checkCancelled)
         FileIndex(file, trigrams)
-    }
-}
-
-private fun <T> runWithDefaultDispatcherAsync(context: CoroutineContext, block: suspend () -> T): Deferred<T> {
-    var contextWithDispatcher = context
-    if (context[ContinuationInterceptor.Key] == null) contextWithDispatcher += defaultDispatcher
-    return GlobalScope.async(contextWithDispatcher) {
-        block()
     }
 }
