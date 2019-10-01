@@ -65,6 +65,41 @@ class FileUtilsSearchMethodsTest {
                     )
                 ),
                 Triple(
+                    "sheaves;\r\nYellow", false, listOf(
+                        SearchResult(
+                            file, "And over the mice in the barley sheaves;\n" +
+                                    "Yellow the leaves of the rowan above us,", 2, 32, 47
+                        )
+                    )
+                ),
+                Triple(
+                    "sheaves;\rYellow", false, listOf(
+                        SearchResult(
+                            file, "And over the mice in the barley sheaves;\n" +
+                                    "Yellow the leaves of the rowan above us,", 2, 32, 47
+                        )
+                    )
+                ),
+                Triple(
+                    "SHEAVES;\ryellow", true, listOf(
+                        SearchResult(
+                            file, "And over the mice in the barley sheaves;\n" +
+                                    "Yellow the leaves of the rowan above us,", 2, 32, 47
+                        )
+                    )
+                ),
+                Triple(
+                    "sheaves;\rYELLOW", true, listOf(
+                        SearchResult(
+                            file, "And over the mice in the barley sheaves;\n" +
+                                    "Yellow the leaves of the rowan above us,", 2, 32, 47
+                        )
+                    )
+                ),
+                Triple(
+                    "sheaves;\rYELLOW", false, emptyList()
+                ),
+                Triple(
                     "us,\nAnd", false, listOf(
                         SearchResult(
                             file, "Autumn is over the long leaves that love us,\n" +
@@ -94,6 +129,18 @@ class FileUtilsSearchMethodsTest {
                             file,
                             "Autumn is over the long leaves that love us,\n" +
                                     "And over the mice in the barley sheaves;", 1, 36, 45
+                        )
+                    )
+                ),
+                Triple(
+                    "\nAnd", false, listOf(
+                        SearchResult(
+                            file, "Autumn is over the long leaves that love us,\n" +
+                                    "And over the mice in the barley sheaves;", 1, 44, 48
+                        ),
+                        SearchResult(
+                            file, "Yellow the leaves of the rowan above us,\n" +
+                                    "And yellow the wet wild-strawberry leaves.", 3, 40, 44
                         )
                     )
                 ),
