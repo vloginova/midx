@@ -2,6 +2,8 @@ package com.vloginova.midx.util
 
 import com.vloginova.midx.api.SearchResult
 import com.vloginova.midx.assertCollectionEquals
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 import java.io.File
@@ -117,7 +119,7 @@ class FileUtilsSearchMethodsTest {
     @ParameterizedTest
     @MethodSource("testDataProvider")
     fun testSearchResult(testData: Triple<String, Boolean, Collection<SearchResult>>) {
-        val matches = file.fullTextSearch(testData.first, testData.second)
+        val matches = runBlocking { file.searchFulltext(testData.first, testData.second).toList() }
         assertCollectionEquals(testData.third, matches)
     }
 

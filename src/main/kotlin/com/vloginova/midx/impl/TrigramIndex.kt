@@ -4,11 +4,12 @@ import com.vloginova.midx.api.IOExceptionHandler
 import com.vloginova.midx.api.IOExceptionHandlers.IGNORE
 import com.vloginova.midx.api.Index
 import com.vloginova.midx.api.SearchResult
-import com.vloginova.midx.util.*
 import com.vloginova.midx.collections.IntKeyMap
 import com.vloginova.midx.impl.TrigramSet.Companion.TRIGRAM_LENGTH
-import kotlinx.coroutines.*
+import com.vloginova.midx.util.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.*
 import java.io.File
 import kotlin.coroutines.ContinuationInterceptor
@@ -58,13 +59,11 @@ class TrigramIndex internal constructor(
         return fileFlow
             .concurrentMapNotNull(Dispatchers.IO + context, TRIGRAM_INDEX_CONCURRENCY_LEVEL) { file ->
                 file.tryProcess(ioExceptionHandler) {
-                    file.fullTextSearch(text, ignoreCase)
+                    file.searchFulltext(text, ignoreCase)
                 }
             }
             .buffer(Channel.UNLIMITED)
-            .flatMapConcat { results ->
-                results.asFlow()
-            }
+            .flatMapConcat { it }
     }
 
     private fun matchingFileCandidates(text: String): Sequence<File> {

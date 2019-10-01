@@ -1,8 +1,8 @@
 package com.vloginova.midx.util
 
 import com.vloginova.midx.api.IOExceptionHandler
-import java.io.File
-import java.io.IOException
+import java.io.*
+import java.nio.charset.Charset
 import java.nio.file.Files
 
 /**
@@ -71,4 +71,11 @@ internal inline fun <T> File.tryProcess(
         ioExceptionHandler(this, e)
         null
     }
+}
+
+/**
+ * Inline version of [kotlin.io.forEachLine]
+ */
+inline fun File.forEachLine(charset: Charset = Charsets.UTF_8, action: (line: String) -> Unit) {
+    BufferedReader(InputStreamReader(FileInputStream(this), charset)).useLines { it.forEach(action) }
 }
