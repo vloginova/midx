@@ -1,10 +1,9 @@
 package com.vloginova.midx.impl
 
-import com.vloginova.midx.api.ABORT_DO_NOTHING
+import com.vloginova.midx.api.IOExceptionHandlers.ABORT
 import com.vloginova.midx.api.SearchResult
 import com.vloginova.midx.assertCollectionEquals
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -212,7 +211,7 @@ class IOExceptionHandlerTest {
     @Test
     fun `Check build is cancelled when input files are cleaned up for ABORT_DO_NOTHING`() {
         runBlocking {
-            val indexBuiltInParallel = buildIndexAsync(listOf(File("DO/NOT/EXIST")), ABORT_DO_NOTHING)
+            val indexBuiltInParallel = buildIndexAsync(listOf(File("DO/NOT/EXIST")), ABORT)
             assertThrows<IOException> { runBlocking { indexBuiltInParallel.await() } }
         }
     }

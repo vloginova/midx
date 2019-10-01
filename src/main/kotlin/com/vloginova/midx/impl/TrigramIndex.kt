@@ -1,7 +1,7 @@
 package com.vloginova.midx.impl
 
-import com.vloginova.midx.api.IGNORE_DO_NOTHING
 import com.vloginova.midx.api.IOExceptionHandler
+import com.vloginova.midx.api.IOExceptionHandlers.IGNORE
 import com.vloginova.midx.api.Index
 import com.vloginova.midx.api.SearchResult
 import com.vloginova.midx.util.*
@@ -130,7 +130,7 @@ internal class TrigramIndexStoragePartition : Iterable<TrigramIndexEntry> {
  */
 fun buildIndexAsync(
     files: List<File>,
-    ioExceptionHandler: IOExceptionHandler = IGNORE_DO_NOTHING,
+    ioExceptionHandler: IOExceptionHandler = IGNORE,
     context: CoroutineContext = EmptyCoroutineContext
 ): Deferred<TrigramIndex> {
     return GlobalScope.async(Dispatchers.Default + context) {
@@ -140,7 +140,7 @@ fun buildIndexAsync(
 
 suspend fun buildIndex(
     files: Iterable<File>,
-    ioExceptionHandler: IOExceptionHandler = IGNORE_DO_NOTHING,
+    ioExceptionHandler: IOExceptionHandler = IGNORE,
     context: CoroutineContext = EmptyCoroutineContext
 ): TrigramIndex {
     val storages = files.walkFiles(ioExceptionHandler).asFlow()

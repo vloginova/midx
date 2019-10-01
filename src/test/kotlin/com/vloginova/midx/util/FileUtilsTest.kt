@@ -1,7 +1,7 @@
 package com.vloginova.midx.util
 
-import com.vloginova.midx.api.ABORT_DO_NOTHING
-import com.vloginova.midx.api.IGNORE_DO_NOTHING
+import com.vloginova.midx.api.IOExceptionHandlers.ABORT
+import com.vloginova.midx.api.IOExceptionHandlers.IGNORE
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -27,7 +27,7 @@ class FileUtilsTryProcessTest {
     fun `Try process returns file content for existing file`() {
         val text = "text"
         file.writeText(text)
-        val bytes = file.tryProcess(IGNORE_DO_NOTHING) {
+        val bytes = file.tryProcess(IGNORE) {
             file.readBytes()
         }
         assertEquals(text, String(bytes ?: ByteArray(0)), "Unexpected file content")
@@ -36,7 +36,7 @@ class FileUtilsTryProcessTest {
     @Test
     fun `Try process returns null with IGNORE_DO_NOTHING`() {
         file.delete()
-        val bytes = file.tryProcess(IGNORE_DO_NOTHING) {
+        val bytes = file.tryProcess(IGNORE) {
             file.readBytes()
         }
         assertNull(bytes, "Not null was returned for non-existing file")
@@ -46,7 +46,7 @@ class FileUtilsTryProcessTest {
     fun `Try process fails with ABORT_DO_NOTHING`() {
         file.delete()
         assertThrows<IOException> {
-            file.tryProcess(ABORT_DO_NOTHING) {
+            file.tryProcess(ABORT) {
                 file.readBytes()
             }
         }
@@ -64,7 +64,7 @@ class FileUtilsMicsTest {
         val text1 = File(FileUtilsMicsTest::class.java.getResource("$testDir/text1.txt").file)
         val text2 = File(FileUtilsMicsTest::class.java.getResource("$testDir/text2.txt").file)
         val textCompressed = File(FileUtilsMicsTest::class.java.getResource("$testDir/textCompressed.zip").file)
-        val files = listOf(fileOther, fileRussian, text1, text2, textCompressed).walkFiles(ABORT_DO_NOTHING).toList()
+        val files = listOf(fileOther, fileRussian, text1, text2, textCompressed).walkFiles(ABORT).toList()
         assertEquals(5, files.count(), "Unexpected number of files in $testDir")
         assertTrue(files.all { it.isFile }, "Non-file is gathered in walkFiles()")
     }
@@ -72,13 +72,13 @@ class FileUtilsMicsTest {
     @Test
     fun `Check walkFiles throws exception on non-existing path with ABORT_DO_NOTHING`() {
         val file = File("DO/NOT/EXIST")
-        assertThrows<IOException> { listOf(file).walkFiles(ABORT_DO_NOTHING).toList() }
+        assertThrows<IOException> { listOf(file).walkFiles(ABORT).toList() }
     }
 
     @Test
     fun `Check walkFiles do not throw exception on non-existing path with IGNORE_DO_NOTHING`() {
         val file = File("DO/NOT/EXIST")
-        listOf(file).walkFiles(IGNORE_DO_NOTHING).toList()
+        listOf(file).walkFiles(IGNORE).toList()
     }
 
     @Test
