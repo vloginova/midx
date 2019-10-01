@@ -128,16 +128,6 @@ internal class TrigramIndexStoragePartition : Iterable<TrigramIndexEntry> {
  * Initiate [TrigramIndex] building with [context] for [files]. If a context doesn't have any
  * [ContinuationInterceptor.Key], default dispatchers will be used. [files] should not contain duplicates.
  */
-fun buildIndexAsync(
-    files: List<File>,
-    ioExceptionHandler: IOExceptionHandler = IGNORE,
-    context: CoroutineContext = EmptyCoroutineContext
-): Deferred<TrigramIndex> {
-    return GlobalScope.async(Dispatchers.Default + context) {
-        buildIndex(files, ioExceptionHandler, context)
-    }
-}
-
 suspend fun buildIndex(
     files: Iterable<File>,
     ioExceptionHandler: IOExceptionHandler = IGNORE,

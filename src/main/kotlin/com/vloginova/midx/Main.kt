@@ -1,7 +1,7 @@
 package com.vloginova.midx
 
 import com.vloginova.midx.impl.TrigramIndex
-import com.vloginova.midx.impl.buildIndexAsync
+import com.vloginova.midx.impl.buildIndex
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.takeWhile
@@ -36,30 +36,31 @@ fun main(args: Array<String>) {
     println(CANCEL_INVITATION)
 
     runBlocking {
-        val startTime = System.currentTimeMillis()
-        val deferredIndex = buildIndexAsync(files)
-
-        awaitInBackground(deferredIndex, startTime)
-            .invokeOnCompletion {
-                if (!deferredIndex.isCancelled) print(SEARCH_INVITATION)
+        val indexDeffered = async(Dispatchers.Default) {
+            val startTime = System.currentTimeMillis()
+            buildIndex(files).also {
+                val endTime = System.currentTimeMillis()
+                println("The index was built in ${endTime - startTime} ms.")
+                print(SEARCH_INVITATION)
             }
+        }
 
         while (true) {
-            if (deferredIndex.isCompleted) print(SEARCH_INVITATION)
+            if (indexDeffered.isCompleted) print(SEARCH_INVITATION)
 
             val line = readLine()
             if (line.isNullOrEmpty()) continue
 
-            if (!deferredIndex.isCompleted) {
-                if (line == "cancel") {
-                    cancelBuild(deferredIndex)
-                    if (deferredIndex.isCancelled) return@runBlocking
+            if (!indexDeffered.isCompleted) {
+                if (line == "q") {
+                    cancelBuild(indexDeffered)
+                    if (indexDeffered.isCancelled) return@runBlocking
                 }
                 println(CANCEL_INVITATION)
                 continue
             }
 
-            val index: TrigramIndex = deferredIndex.getCompleted()
+            val index: TrigramIndex = indexDeffered.getCompleted()
             searchInIndex(index, searchIgnoreCase, line)
         }
     }
@@ -75,13 +76,6 @@ private fun checkFiles(files: List<File>) {
     }
     if (incorrectFileFound) exitProcess(-1)
 }
-
-private fun awaitInBackground(deferredIndex: Deferred<TrigramIndex>, startTime: Long): Job =
-    GlobalScope.launch {
-        deferredIndex.await()
-        val endTime = System.currentTimeMillis()
-        println("The index was built in ${endTime - startTime} ms.")
-    }
 
 private suspend fun cancelBuild(deferredIndex: Deferred<TrigramIndex>) {
     val timeMillis = measureTimeMillis {

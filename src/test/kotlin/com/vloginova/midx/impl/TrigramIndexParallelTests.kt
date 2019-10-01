@@ -23,9 +23,8 @@ class TrigramIndexParallelBuildTest {
     @Test
     fun `Ensure sequential index building produce the same result as parallel`() {
         runBlocking {
-            val indexBuiltSequentially =
-                buildIndexAsync(listOf(rootDirectory), context = newSingleThreadContext("Test")).await()
-            val indexBuiltInParallel = buildIndexAsync(listOf(rootDirectory)).await()
+            val indexBuiltSequentially = buildIndex(listOf(rootDirectory), context = newSingleThreadContext("Test"))
+            val indexBuiltInParallel = buildIndex(listOf(rootDirectory))
 
             assertEquals(indexBuiltSequentially, indexBuiltInParallel)
         }
@@ -35,7 +34,7 @@ class TrigramIndexParallelBuildTest {
     @Test
     fun `Ensure sequential index search produce the same result as parallel`() {
         runBlocking {
-            val index = buildIndexAsync(listOf(rootDirectory)).await()
+            val index = buildIndex(listOf(rootDirectory))
             val searchText = generateRandomText(9)
 
             val sequentialSearchResult = index.search(searchText, context = newSingleThreadContext("Test")).toList()
@@ -48,10 +47,14 @@ class TrigramIndexParallelBuildTest {
     @Test
     fun `Check build cancellation`() {
         runBlocking {
-            val indexBuiltInParallel = buildIndexAsync(listOf(rootDirectory))
-            delay(10)
-            val cancellationTime = measureTimeMillis { indexBuiltInParallel.cancelAndJoin() }
-            assertEquals(true, indexBuiltInParallel.isCancelled, "Build was completed before cancellation")
+            val cancellationTime = measureTimeMillis {
+                supervisorScope {
+                    val indexBuiltInParallel = async { buildIndex(listOf(rootDirectory)) }
+                    delay(50)
+                    indexBuiltInParallel.cancelAndJoin()
+                    assertTrue(indexBuiltInParallel.isCancelled, "Build was completed before cancellation")
+                }
+            }
             assertTrue(cancellationTime < 200, "Cancellation was too long: $cancellationTime")
         }
     }

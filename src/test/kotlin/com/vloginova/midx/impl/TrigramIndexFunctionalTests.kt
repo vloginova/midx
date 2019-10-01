@@ -25,7 +25,7 @@ internal class TrigramIndexTest {
     companion object {
         private const val testFilesPath = "/simpleTestFiles"
         private val file = File(TrigramIndexTest::class.java.getResource(testFilesPath).file)
-        val index: TrigramIndex = runBlocking { buildIndexAsync(listOf(file)).await() }
+        val index: TrigramIndex = runBlocking { buildIndex(listOf(file)) }
 
         @Suppress("unused")
         @JvmStatic
@@ -174,7 +174,7 @@ class SmallFilesTrigramIndexTest {
     @Test
     fun `Search on empty file test`() {
         tempFile.writeText("")
-        val index = runBlocking { buildIndexAsync(listOf(tempFile)).await() }
+        val index = runBlocking { buildIndex(listOf(tempFile)) }
         val matches = collectMatches(index, "abcd", false, "/")
         assertTrue(matches.isEmpty(), "Search result on empty file is not empty")
     }
@@ -182,7 +182,7 @@ class SmallFilesTrigramIndexTest {
     @Test
     fun `Search on short file test`() {
         tempFile.writeText("ab")
-        val index = runBlocking { buildIndexAsync(listOf(tempFile)).await() }
+        val index = runBlocking { buildIndex(listOf(tempFile)) }
         val matches = collectMatches(index, "a", false, "/")
 
         assertEquals(1, matches.size, "Unexpected number of matches")
@@ -200,10 +200,9 @@ class IOExceptionHandlerTest {
     fun `Check built is successful without exception when input files are cleaned up when ignoring exception`() {
         val counter = AtomicInteger()
         runBlocking {
-            val indexBuiltInParallel = buildIndexAsync(listOf(File("DO/NOT/EXIST")), { _, _ ->
+            buildIndex(listOf(File("DO/NOT/EXIST")), { _, _ ->
                 counter.incrementAndGet()
             })
-            indexBuiltInParallel.await()
         }
         assertTrue(counter.get() > 0, "Some files should have been failed to process")
     }
@@ -211,8 +210,7 @@ class IOExceptionHandlerTest {
     @Test
     fun `Check build is cancelled when input files are cleaned up for ABORT_DO_NOTHING`() {
         runBlocking {
-            val indexBuiltInParallel = buildIndexAsync(listOf(File("DO/NOT/EXIST")), ABORT)
-            assertThrows<IOException> { runBlocking { indexBuiltInParallel.await() } }
+            assertThrows<IOException> { runBlocking { buildIndex(listOf(File("DO/NOT/EXIST")), ABORT) } }
         }
     }
 
