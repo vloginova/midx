@@ -6,7 +6,7 @@ import java.nio.charset.Charset
 import kotlin.math.sqrt
 
 /**
- * Internal intermediate collection, which [TrigramIndex] builder uses for intermediate result representation.
+ * Internal collection, which [TrigramIndex] builder uses for intermediate result representation.
  * [TrigramSet] can be built from String or from File. Each trigram represents three characters,
  * collisions are possible. [TrigramSet] doesn't differ CR, CRLF and LF (like [java.io.BufferedReader.readLine]),
  * which make it easier to implement multiline search for [TrigramIndex].
@@ -36,7 +36,7 @@ internal class TrigramSet(initialCapacity: Int) {
         }
 
         /**
-         * Creates Trigram Set for a given [file], buffering characters for efficient processing, [bufferSize] defines
+         * Creates Trigram Set for a given [file], buffering characters for efficient processing. [bufferSize] defines
          * the size of the buffer. To cancel processing [checkCancelled] should be used.
          * Treats line separators CR, CRLF and LF uniformly.
          *

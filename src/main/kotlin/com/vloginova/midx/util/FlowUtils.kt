@@ -1,15 +1,18 @@
 package com.vloginova.midx.util
 
-import kotlinx.coroutines.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.produceIn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
 /**
- * Maps receiver flow to another with a concurrency level [concurrencyLevel].
+ * Maps the receiver flow to another with a concurrency level [concurrencyLevel].
  */
 internal inline fun <T, R> Flow<T>.concurrentMapNotNull(
     context: CoroutineContext,
@@ -33,7 +36,7 @@ internal inline fun <T, R> Flow<T>.concurrentMapNotNull(
 }
 
 /**
- * Filters values from the receiver with a concurrency level [concurrencyLevel].
+ * Filters the values from the receiver with a concurrency level [concurrencyLevel].
  */
 internal inline fun <T> Flow<T>.concurrentFilter(
     context: CoroutineContext,
@@ -57,7 +60,7 @@ internal inline fun <T> Flow<T>.concurrentFilter(
 }
 
 /**
- * Folds receiver flow concurrently into [partitionNumber] of partitions.
+ * Folds the receiver flow concurrently into [partitionNumber] of partitions.
  */
 internal suspend inline fun <T, R> Flow<T>.partitionFold(
     context: CoroutineContext,

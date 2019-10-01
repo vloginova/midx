@@ -12,7 +12,7 @@ import java.util.*
 private val lineSeparatorRegex = Regex("\\r\\n|\\n|\\r")
 
 /**
- * Performs fulltext search, treating all line separators in [text] and the file itself uniformly.
+ * Performs the fulltext search, treating all line separators in [text] and the file itself uniformly.
  *
  * @throws IOException If an I/O error occurs
  */

@@ -6,7 +6,7 @@ import java.nio.charset.Charset
 import java.nio.file.Files
 
 /**
- * MIME types that do not start with 'text/', but having text-based content. The list is not complete, it was composed
+ * MIME types that do not start with 'text/', but have text-based content. The list is not complete, it was composed
  * based on files from <a href="https://github.com/JetBrains/intellij-community">IntelliJ IDEA Community Edition</a>
  */
 private val otherTextMimeTypes = setOf(
@@ -42,9 +42,10 @@ internal fun Iterable<File>.walkFiles(ioExceptionHandler: IOExceptionHandler): S
 }
 
 /**
- * Defines if the file has text content via [Files.probeContentType]. A file has text content when it has a text/\* MIME
- * type, or the type is in [otherTextMimeTypes]. Heuristic: for files with extensions [textFileExtensions] and
- * [binaryFileExtensions] gives an answer right away.
+ * Determines if the receiver file has a text content type. For files with extensions [textFileExtensions] and
+ * [binaryFileExtensions] gives an answer right away (heuristic). Otherwise, defines the MIME type
+ * via [Files.probeContentType]. A file has text content when it has a text/\* MIME type, or the type is
+ * in [otherTextMimeTypes].
  *
  * @throws IOException If an I/O error occurs
  */
@@ -57,9 +58,9 @@ internal fun File.hasTextContent(): Boolean {
 }
 
 /**
- * Tries to execute [block]. In case [IOException] occurs, follows the provided [ioExceptionHandler]
+ * Tries to execute [block]. In case [IOException] occurs, executes [ioExceptionHandler]
  *
- * @throws IOException If an I/O error occurs, and it wasn't ignored according to [ioExceptionHandler]
+ * @throws IOException If an I/O error occurs, and it wasn't swallowed by [ioExceptionHandler]
  */
 internal inline fun <T> File.tryProcess(
     ioExceptionHandler: IOExceptionHandler,

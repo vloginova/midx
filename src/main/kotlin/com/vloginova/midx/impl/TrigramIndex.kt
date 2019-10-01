@@ -23,10 +23,8 @@ private val AVAILABLE_PROCESSORS = Runtime.getRuntime().availableProcessors()
 private const val TRIGRAM_INDEX_CONCURRENCY_LEVEL = 128
 
 /**
- * [TrigramIndex] is represented as a reverse index with a trigram as a key. The class is immutable, so it can
- * be safely used for searching in multi thread context.
- *
- * Index does not support incremental updates.
+ * Trigram-based reversed index. The class is immutable, so it can be safely used for searching in multi thread context.
+ * Does not support incremental updates.
  */
 class TrigramIndex internal constructor(
     private val rootFiles: Iterable<File>,
@@ -34,8 +32,7 @@ class TrigramIndex internal constructor(
 ) : Index {
 
     /**
-     * Searches for [text] in the [TrigramIndex]. The implementation is effective for searches of input of length
-     * greater that 3. For short inputs it searches fulltext.
+     * Efficiently searches fot input of length greater that 3. For short inputs it searches fulltext among all files.
      */
     override fun search(
         text: String,
