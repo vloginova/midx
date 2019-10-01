@@ -4,6 +4,9 @@ import com.vloginova.midx.api.ABORT_DO_NOTHING
 import com.vloginova.midx.api.SearchResult
 import com.vloginova.midx.assertCollectionEquals
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -222,12 +225,11 @@ private fun collectMatches(
     ignoreCase: Boolean,
     testFilesPath: String
 ): Collection<SearchResult> {
-    val matches = ArrayList<SearchResult>()
-    runBlocking {
-        index.searchAsync(searchText, ignoreCase) { (file, line, lineNumber, startIdx, endIdx) ->
-            val simplifiedFileName = file.path.replaceFirst(Regex(".*$testFilesPath"), testFilesPath)
-            matches.add(SearchResult(File(simplifiedFileName), line, lineNumber, startIdx, endIdx))
-        }.await()
+    return runBlocking {
+        index.search(searchText, ignoreCase)
+            .map { (file, line, lineNumber, startIdx, endIdx) ->
+                val simplifiedFileName = file.path.replaceFirst(Regex(".*$testFilesPath"), testFilesPath)
+                SearchResult(File(simplifiedFileName), line, lineNumber, startIdx, endIdx)
+            }.toList()
     }
-    return matches
 }

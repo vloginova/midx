@@ -1,9 +1,9 @@
 package com.vloginova.midx.impl
 
-import com.vloginova.midx.api.SearchResult
 import com.vloginova.midx.assertCollectionEquals
 import com.vloginova.midx.generateRandomText
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.toList
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeAll
@@ -38,15 +38,8 @@ class TrigramIndexParallelBuildTest {
             val index = buildIndexAsync(listOf(rootDirectory)).await()
             val searchText = generateRandomText(9)
 
-            val sequentialSearchResult = ArrayList<SearchResult>()
-            index.searchAsync(searchText, context = newSingleThreadContext("Test")) {
-                sequentialSearchResult.add(it)
-            }.await()
-
-            val parallelSearchResult = ArrayList<SearchResult>()
-            index.searchAsync(searchText) {
-                parallelSearchResult.add(it)
-            }.await()
+            val sequentialSearchResult = index.search(searchText, context = newSingleThreadContext("Test")).toList()
+            val parallelSearchResult = index.search(searchText).toList()
 
             assertCollectionEquals(sequentialSearchResult, parallelSearchResult)
         }

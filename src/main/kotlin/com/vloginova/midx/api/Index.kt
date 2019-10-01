@@ -1,5 +1,6 @@
 package com.vloginova.midx.api
 
+import kotlinx.coroutines.flow.Flow
 import java.io.File
 import java.io.IOException
 import kotlin.coroutines.CoroutineContext
@@ -19,17 +20,15 @@ val ABORT_DO_NOTHING: IOExceptionHandler = { _, e -> throw e }
  */
 interface Index {
     /**
-     * Searcher for [text] in [Index]. In case of I/O Exception applies provided [ioExceptionHandler]. Each match is
-     * processed by [processMatch] in place, the context is unspecified. If [context] is passed, launches concurrent
-     * coroutines with [context]. Otherwise, implementation defines the context.
+     * Searches for [text] in [Index]. In case of an I/O exception applies provided [ioExceptionHandler].
+     * Executes flow operations on the provided [context], or on a default one, if not specified.
      */
-    suspend fun search(
+    fun search(
         text: String,
         ignoreCase: Boolean = false,
         ioExceptionHandler: IOExceptionHandler = IGNORE_DO_NOTHING,
-        context: CoroutineContext = EmptyCoroutineContext,
-        processMatch: suspend (SearchResult) -> Unit
-    )
+        context: CoroutineContext = EmptyCoroutineContext
+    ): Flow<SearchResult>
 
 }
 

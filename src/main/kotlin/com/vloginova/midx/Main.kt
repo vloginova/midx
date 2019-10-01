@@ -3,6 +3,8 @@ package com.vloginova.midx
 import com.vloginova.midx.impl.TrigramIndex
 import com.vloginova.midx.impl.buildIndexAsync
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.takeWhile
 import java.io.File
 import kotlin.system.exitProcess
 import kotlin.system.measureTimeMillis
@@ -86,7 +88,7 @@ private suspend fun cancelBuild(deferredIndex: Deferred<TrigramIndex>) {
 
 private suspend fun searchInIndex(index: TrigramIndex, ignoreCase: Boolean, text: String) {
     val timeMillis = measureTimeMillis {
-        index.searchAsync(text, ignoreCase) { (file, matchingText, lineNumber, startIdx, endIdx) ->
+        index.search(text, ignoreCase).collect { (file, matchingText, lineNumber, startIdx, endIdx) ->
             prettyPrint(file.path.takeLast(60), FontStyle.BOLD)
             prettyPrint(" : $lineNumber:\t", FontStyle.BOLD)
 
@@ -97,7 +99,7 @@ private suspend fun searchInIndex(index: TrigramIndex, ignoreCase: Boolean, text
                 FontStyle.RED
             )
             println(matchingText.drop(endIdx))
-        }.await()
+        }
     }
     println("The search was completed in $timeMillis ms.")
 }

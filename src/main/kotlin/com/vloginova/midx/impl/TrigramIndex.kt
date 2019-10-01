@@ -8,9 +8,7 @@ import com.vloginova.midx.util.*
 import com.vloginova.midx.collections.IntKeyMap
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.buffer
-import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.*
 import java.io.File
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
@@ -37,20 +35,19 @@ class TrigramIndex internal constructor(
      * Searches for [text] in the [TrigramIndex]. The implementation is effective for searches of input of length
      * greater that 3. For short inputs it searches fulltext.
      */
-    override suspend fun search(
+    override fun search(
         text: String,
         ignoreCase: Boolean,
         ioExceptionHandler: IOExceptionHandler,
-        context: CoroutineContext,
-        processMatch: suspend (SearchResult) -> Unit
-    ) {
-        if (text.isEmpty()) return
+        context: CoroutineContext
+    ): Flow<SearchResult> {
+        if (text.isEmpty()) return emptyFlow()
 
         val fileSequence =
             if (text.length < 3) rootDirectory.walkFiles(ioExceptionHandler)
             else matchingFileCandidates(text)
 
-        fileSequence.asFlow()
+        return fileSequence.asFlow()
             .concurrentFilter(Dispatchers.IO + context, TRIGRAM_INDEX_CONCURRENCY_LEVEL) { file ->
                 file.tryProcess(ioExceptionHandler) {
                     file.hasTextContent()
@@ -62,23 +59,9 @@ class TrigramIndex internal constructor(
                 }
             }
             .buffer(Channel.UNLIMITED)
-            .collect { results ->
-                for (result in results) {
-                    processMatch(result)
-                }
+            .flatMapConcat { results ->
+                results.asFlow()
             }
-    }
-
-    fun searchAsync(
-        text: String,
-        ignoreCase: Boolean = false,
-        ioExceptionHandler: IOExceptionHandler = IGNORE_DO_NOTHING,
-        context: CoroutineContext = EmptyCoroutineContext,
-        processMatch: suspend (SearchResult) -> Unit
-    ): Deferred<Unit> {
-        return GlobalScope.async(Dispatchers.IO + context) {
-            search(text, ignoreCase, ioExceptionHandler, context, processMatch)
-        }
     }
 
     private fun matchingFileCandidates(text: String): Sequence<File> {
@@ -100,7 +83,7 @@ internal class TrigramIndexStorage(private val partitions: Collection<TrigramInd
     fun getIntersectionOf(trigrams: TrigramSet): Collection<File> {
         return partitions
             .map { partition -> partition.getIntersectionOf(trigrams) }
-            .reduce { acc, set -> acc.union(set) }
+            .fold(mutableSetOf()) { acc, set -> acc.apply { addAll(set) } }
     }
 
 }
