@@ -19,8 +19,8 @@ internal class TrigramSet(initialCapacity: Int) {
         get() = internalSet.size
 
     companion object {
-        private const val TRIGRAM_LENGTH = 3
-        private const val MIN_BUFFER_SIZE = TRIGRAM_LENGTH * 2  // the worst case scenario: \r\n\r\n\r\n
+        const val TRIGRAM_LENGTH = 3
+        const val MIN_BUFFER_SIZE = TRIGRAM_LENGTH * 2  // the worst case scenario: \r\n\r\n\r\n
 
         /**
          * Creates Trigram Set for a given [text]. Should not be used for large inputs.

@@ -61,7 +61,7 @@ class TrigramIndexParallelBuildTest {
 
     private fun assertEquals(expectedIndex: TrigramIndex, actualIndex: TrigramIndex) {
         val indexStorageField = TrigramIndex::class.memberProperties
-            .first { it.name == "indexStorage" } as KProperty1<TrigramIndex, TrigramIndexStorage>
+            .first { it.name == "storage" } as KProperty1<TrigramIndex, TrigramIndexStorage>
         indexStorageField.isAccessible = true
 
         val partitionsField = TrigramIndexStorage::class.memberProperties

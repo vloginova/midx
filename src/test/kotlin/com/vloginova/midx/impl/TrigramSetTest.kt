@@ -2,6 +2,7 @@ package com.vloginova.midx.impl
 
 import com.vloginova.midx.alphabet
 import com.vloginova.midx.assertCollectionEquals
+import com.vloginova.midx.impl.TrigramSet.Companion.MIN_BUFFER_SIZE
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -138,7 +139,7 @@ class TrigramSetFromFileTest : TrigramSetTest() {
         val text = testData.first
         val expectedNumberOfTrigrams = testData.second
         file.writeText(text)
-        val trigramSet = TrigramSet.from(file, bufferSize = 6)
+        val trigramSet = TrigramSet.from(file, bufferSize = MIN_BUFFER_SIZE)
         assertEquals(
             expectedNumberOfTrigrams,
             trigramSet.size,
@@ -163,7 +164,7 @@ class TrigramSetFromFileTest : TrigramSetTest() {
     @MethodSource("dataProviderForMultilineInputsTest")
     fun `Check TrigramSet from(File) for multiline inputs`(input: String) {
         file.writeText(input)
-        val trigramsForInputWithLfOnly = TrigramSet.from(file, bufferSize = 6).toSet()
+        val trigramsForInputWithLfOnly = TrigramSet.from(file, bufferSize = MIN_BUFFER_SIZE).toSet()
         val trigramsForInput = TrigramSet.from(input.replaceFileSeparatorsWithLf()).toSet()
         assertCollectionEquals(trigramsForInput, trigramsForInputWithLfOnly)
     }

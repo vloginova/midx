@@ -6,6 +6,7 @@ import com.vloginova.midx.api.Index
 import com.vloginova.midx.api.SearchResult
 import com.vloginova.midx.util.*
 import com.vloginova.midx.collections.IntKeyMap
+import com.vloginova.midx.impl.TrigramSet.Companion.TRIGRAM_LENGTH
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
@@ -27,8 +28,8 @@ private const val TRIGRAM_INDEX_CONCURRENCY_LEVEL = 128
  * Index does not support incremental updates.
  */
 class TrigramIndex internal constructor(
-    private val rootDirectory: Iterable<File>,
-    private val indexStorage: TrigramIndexStorage
+    private val rootFiles: Iterable<File>,
+    private val storage: TrigramIndexStorage
 ) : Index {
 
     /**
@@ -43,16 +44,18 @@ class TrigramIndex internal constructor(
     ): Flow<SearchResult> {
         if (text.isEmpty()) return emptyFlow()
 
-        val fileSequence =
-            if (text.length < 3) rootDirectory.walkFiles(ioExceptionHandler)
-            else matchingFileCandidates(text)
+        val fileFlow = if (text.length >= TRIGRAM_LENGTH) {
+            matchingFileCandidates(text).asFlow()
+        } else {
+            rootFiles.walkFiles(ioExceptionHandler).asFlow()
+                .concurrentFilter(Dispatchers.IO + context, TRIGRAM_INDEX_CONCURRENCY_LEVEL) { file ->
+                    file.tryProcess(ioExceptionHandler) {
+                        file.hasTextContent()
+                    } ?: false
+                }
+        }
 
-        return fileSequence.asFlow()
-            .concurrentFilter(Dispatchers.IO + context, TRIGRAM_INDEX_CONCURRENCY_LEVEL) { file ->
-                file.tryProcess(ioExceptionHandler) {
-                    file.hasTextContent()
-                } ?: false
-            }
+        return fileFlow
             .concurrentMapNotNull(Dispatchers.IO + context, TRIGRAM_INDEX_CONCURRENCY_LEVEL) { file ->
                 file.tryProcess(ioExceptionHandler) {
                     file.fullTextSearch(text, ignoreCase)
@@ -65,9 +68,9 @@ class TrigramIndex internal constructor(
     }
 
     private fun matchingFileCandidates(text: String): Sequence<File> {
-        check(text.length >= 3) { "Cannot search in index inputs with length les than 3" }
+        check(text.length >= TRIGRAM_LENGTH) { "Cannot search in index inputs with length les than $TRIGRAM_LENGTH" }
         val trigrams = TrigramSet.from(text)
-        return indexStorage.getIntersectionOf(trigrams).asSequence()
+        return storage.getIntersectionOf(trigrams).asSequence()
     }
 
 }
@@ -125,15 +128,15 @@ internal class TrigramIndexStoragePartition : Iterable<TrigramIndexEntry> {
 }
 
 /**
- * Initiate [TrigramIndex] building with [context] for [files]. If a context doesn't have any
- * [ContinuationInterceptor.Key], default dispatchers will be used. [files] should not contain duplicates.
+ * Initiate [TrigramIndex] building with [context] for [rootFiles]. If the context doesn't have any
+ * [ContinuationInterceptor.Key], default dispatchers will be used. [rootFiles] should not contain duplicates.
  */
 suspend fun buildIndex(
-    files: Iterable<File>,
+    rootFiles: Iterable<File>,
     ioExceptionHandler: IOExceptionHandler = IGNORE,
     context: CoroutineContext = EmptyCoroutineContext
 ): TrigramIndex {
-    val storages = files.walkFiles(ioExceptionHandler).asFlow()
+    val storages = rootFiles.walkFiles(ioExceptionHandler).asFlow()
         .concurrentFilter(Dispatchers.IO + context, TRIGRAM_INDEX_CONCURRENCY_LEVEL) { file ->
             file.tryProcess(ioExceptionHandler) {
                 file.hasTextContent()
@@ -150,7 +153,7 @@ suspend fun buildIndex(
         ) { storage, fileIndex ->
             storage.apply { populateWith(fileIndex) }
         }
-    return TrigramIndex(files, TrigramIndexStorage(storages))
+    return TrigramIndex(rootFiles, TrigramIndexStorage(storages))
 }
 
 private fun tryCreateFileIndex(
