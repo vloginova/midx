@@ -46,18 +46,22 @@ class TrigramIndexParallelBuildTest {
 
     @Test
     fun `Check build cancellation`() {
+        val indexBuildingTime = calculateIndexBuildingTime()
         runBlocking {
             val cancellationTime = measureTimeMillis {
                 supervisorScope {
                     val indexBuiltInParallel = async { buildIndex(listOf(rootDirectory)) }
-                    delay(50)
+                    delay(indexBuildingTime / 10)
                     indexBuiltInParallel.cancelAndJoin()
                     assertTrue(indexBuiltInParallel.isCancelled, "Build was completed before cancellation")
                 }
             }
-            assertTrue(cancellationTime < 200, "Cancellation was too long: $cancellationTime")
+            assertTrue(cancellationTime < indexBuildingTime / 3, "Cancellation was too long: $cancellationTime m")
         }
     }
+
+    private fun calculateIndexBuildingTime(): Long =
+        measureTimeMillis { runBlocking { buildIndex(listOf(rootDirectory)) } }
 
     private fun assertEquals(expectedIndex: TrigramIndex, actualIndex: TrigramIndex) {
         val indexStorageField = TrigramIndex::class.memberProperties
