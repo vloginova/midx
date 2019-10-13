@@ -115,7 +115,7 @@ class TrigramIndexParallelBuildTest {
 
 private fun generateInputData(
     folderNumber: Int = 10,
-    fileNumber: Int = 100
+    fileNumber: Int = 50
 ): File {
     val rootDirectory = createTempDir()
     try {
